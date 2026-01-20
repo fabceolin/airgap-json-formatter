@@ -217,7 +217,7 @@ ApplicationWindow {
 
     // Ctrl+V paste (Qt WASM doesn't handle browser paste events well)
     Shortcut {
-        sequence: StandardKey.Paste
+        sequences: [StandardKey.Paste]
         onActivated: {
             const text = JsonBridge.readFromClipboard();
             if (text) {
