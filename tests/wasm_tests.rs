@@ -9,7 +9,7 @@ use wasm_bindgen_test::*;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
-use airgap_json_formatter::{js_format_json, js_minify_json, js_validate_json, greet};
+use airgap_json_formatter::{js_format_json, js_highlight_json, js_minify_json, js_validate_json, greet};
 
 #[wasm_bindgen_test]
 fn test_greet() {
@@ -109,4 +109,30 @@ fn test_round_trip() {
     // Minified should be valid
     let validation = js_validate_json(&minified);
     assert!(validation.contains("\"isValid\":true"));
+}
+
+#[wasm_bindgen_test]
+fn test_highlight_json_basic() {
+    let input = r#"{"key": "value", "num": 42}"#;
+    let result = js_highlight_json(input);
+    assert!(result.contains("<span")); // Has HTML spans
+    assert!(result.contains("key"));
+    assert!(result.contains("value"));
+}
+
+#[wasm_bindgen_test]
+fn test_highlight_empty_input() {
+    let result = js_highlight_json("");
+    assert!(result.is_empty());
+}
+
+#[wasm_bindgen_test]
+fn test_highlight_all_json_types() {
+    let input = r#"{"str": "hello", "num": 123, "bool": true, "nil": null}"#;
+    let result = js_highlight_json(input);
+    assert!(result.contains("<span"));
+    assert!(result.contains("hello"));
+    assert!(result.contains("123"));
+    assert!(result.contains("true"));
+    assert!(result.contains("null"));
 }

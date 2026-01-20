@@ -24,4 +24,13 @@ QtObject {
     // Typography
     readonly property string monoFont: "Consolas, Monaco, 'Courier New', monospace"
     readonly property int monoFontSize: 14
+
+    // Syntax highlighting colors (reference only - provided by Rust syntect via inline HTML styles)
+    // Theme: base16-ocean.dark
+    // Keys:        #8fa1b3 (light blue)
+    // Strings:     #a3be8c (green)
+    // Numbers:     #d08770 (orange)
+    // Booleans:    #b48ead (purple)
+    // Null:        #bf616a (red)
+    // Punctuation: #c0c5ce (light gray)
 }

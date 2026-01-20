@@ -107,6 +107,36 @@ const JsonBridge = {
     },
 
     /**
+     * Highlight JSON with syntax colors
+     * @param {string} input - JSON string to highlight
+     * @returns {string} HTML with syntax highlighting
+     */
+    highlightJson(input) {
+        if (!isInitialized) {
+            return this.escapeHtml(input);
+        }
+        try {
+            return wasmModule.highlightJson(input);
+        } catch (e) {
+            console.error('[Bridge] highlightJson error:', e);
+            return this.escapeHtml(input);
+        }
+    },
+
+    /**
+     * Escape HTML special characters
+     * @param {string} text - Text to escape
+     * @returns {string} Escaped text
+     */
+    escapeHtml(text) {
+        if (!text) return '';
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    },
+
+    /**
      * Copy text to clipboard
      * @param {string} text - Text to copy
      * @returns {Promise<boolean>}

@@ -1,6 +1,7 @@
 use wasm_bindgen::prelude::*;
 
 pub mod formatter;
+pub mod highlighter;
 pub mod types;
 pub mod validator;
 
@@ -9,6 +10,7 @@ mod tests;
 
 // Re-export public types for convenience (Rust API)
 pub use formatter::{format_json, minify_json};
+pub use highlighter::highlight_json;
 pub use types::{FormatError, IndentStyle, JsonStats, ValidationResult};
 pub use validator::validate_json;
 
@@ -119,4 +121,18 @@ pub fn js_validate_json(input: &str) -> String {
         result.stats.max_depth,
         result.stats.total_keys
     )
+}
+
+/// Highlight JSON with syntax colors, returning HTML with inline styles.
+///
+/// # Arguments
+/// * `input` - The JSON string to highlight
+///
+/// # Returns
+/// * HTML string with inline styles for syntax highlighting
+/// * Empty string if input is empty
+/// * Escaped plain text if highlighting fails
+#[wasm_bindgen(js_name = "highlightJson")]
+pub fn js_highlight_json(input: &str) -> String {
+    highlighter::highlight_json(input)
 }
