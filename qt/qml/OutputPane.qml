@@ -5,8 +5,7 @@ import AirgapFormatter
 Rectangle {
     id: outputPane
 
-    property string rawText: ""  // Plain text for copy operations
-    property alias text: rawText
+    property string text: ""  // Plain text for copy operations
 
     color: Theme.backgroundSecondary
     border.color: Theme.border
@@ -33,10 +32,10 @@ Rectangle {
         }
     }
 
-    onRawTextChanged: {
-        if (rawText) {
+    onTextChanged: {
+        if (text) {
             // Get highlighted HTML from Rust via bridge
-            textArea.text = JsonBridge.highlightJson(rawText);
+            textArea.text = JsonBridge.highlightJson(text);
         } else {
             textArea.text = "";
         }
@@ -44,6 +43,6 @@ Rectangle {
 
     // For copy operations, return plain text
     function getPlainText() {
-        return rawText;
+        return text;
     }
 }
