@@ -204,4 +204,25 @@ ApplicationWindow {
         sequence: "Ctrl+Shift+C"
         onActivated: toolbar.copyRequested()
     }
+
+    Shortcut {
+        sequence: "Ctrl+Shift+Ins"
+        onActivated: {
+            const text = JsonBridge.readFromClipboard();
+            if (text) {
+                inputPane.text = text;
+            }
+        }
+    }
+
+    // Ctrl+V paste (Qt WASM doesn't handle browser paste events well)
+    Shortcut {
+        sequence: StandardKey.Paste
+        onActivated: {
+            const text = JsonBridge.readFromClipboard();
+            if (text) {
+                inputPane.text = text;
+            }
+        }
+    }
 }

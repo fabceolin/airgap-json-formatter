@@ -214,3 +214,31 @@ void JsonBridge::copyToClipboard(const QString &text)
     qDebug() << "Clipboard copy not available outside WebAssembly";
 #endif
 }
+
+QString JsonBridge::readFromClipboard()
+{
+#ifdef __EMSCRIPTEN__
+    try {
+        val window = val::global("window");
+        val jsonBridge = window["JsonBridge"];
+
+        if (!jsonBridge.isUndefined() && !jsonBridge.isNull()) {
+            // Note: This is a synchronous call to an async JS function
+            // The JS side handles the promise internally
+            val promise = jsonBridge.call<val>("readFromClipboard");
+            val result = promise.await();
+            if (!result.isUndefined() && !result.isNull()) {
+                std::string text = result.as<std::string>();
+                return QString::fromStdString(text);
+            }
+        }
+    } catch (const std::exception &e) {
+        qWarning() << "Failed to read from clipboard:" << e.what();
+    } catch (...) {
+        qWarning() << "Failed to read from clipboard";
+    }
+#else
+    qDebug() << "Clipboard read not available outside WebAssembly";
+#endif
+    return QString();
+}

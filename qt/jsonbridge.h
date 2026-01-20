@@ -24,6 +24,7 @@ public:
     Q_INVOKABLE QVariantMap minifyJson(const QString &input);
     Q_INVOKABLE QVariantMap validateJson(const QString &input);
     Q_INVOKABLE void copyToClipboard(const QString &text);
+    Q_INVOKABLE QString readFromClipboard();
 
 signals:
     void readyChanged();

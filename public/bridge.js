@@ -149,6 +149,20 @@ const JsonBridge = {
             console.error('[Bridge] Clipboard write failed:', e);
             return false;
         }
+    },
+
+    /**
+     * Read text from clipboard
+     * @returns {Promise<string>} The clipboard text or empty string on failure
+     */
+    async readFromClipboard() {
+        try {
+            const text = await navigator.clipboard.readText();
+            return text || '';
+        } catch (e) {
+            console.error('[Bridge] Clipboard read failed:', e);
+            return '';
+        }
     }
 };
 
