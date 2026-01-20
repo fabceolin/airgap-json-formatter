@@ -64,12 +64,11 @@
     </style>
 </head>
 <body>
-    <div id="qt-container">
-        <div class="loading" id="loading">
-            <h1>Airgap JSON Formatter</h1>
-            <div class="spinner"></div>
-            <div class="status" id="status">Loading Qt WASM...</div>
-        </div>
+    <div id="qt-container"></div>
+    <div class="loading" id="loading">
+        <h1>Airgap JSON Formatter</h1>
+        <div class="spinner"></div>
+        <div class="status" id="status">Loading Qt WASM...</div>
     </div>
 
     <!-- Service Worker Registration -->
@@ -114,7 +113,30 @@
 
                 // Get container element for Qt
                 const container = document.getElementById('qt-container');
-                container.innerHTML = ''; // Clear loading indicator
+
+                // Set up observer to hide loading when Qt canvas renders
+                const hideLoadingWhenReady = () => {
+                    const observer = new MutationObserver((mutations, obs) => {
+                        const canvas = container.querySelector('canvas');
+                        if (canvas) {
+                            // Wait for canvas to have dimensions (actually rendered)
+                            const checkVisible = () => {
+                                if (canvas.offsetWidth > 0 && canvas.offsetHeight > 0) {
+                                    loadingEl.style.display = 'none';
+                                    obs.disconnect();
+                                    console.log('[Airgap] Qt canvas rendered, loading hidden');
+                                } else {
+                                    requestAnimationFrame(checkVisible);
+                                }
+                            };
+                            checkVisible();
+                        }
+                    });
+                    observer.observe(container, { childList: true, subtree: true });
+                };
+                hideLoadingWhenReady();
+
+                statusEl.textContent = 'Initializing Qt...';
 
                 // Initialize Qt WASM with container elements (Qt 6 API)
                 const instance = await createQtAppInstance({
