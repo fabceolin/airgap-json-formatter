@@ -5,18 +5,16 @@
 
 const CACHE_NAME = 'airgap-json-formatter-v1';
 
-// Assets to precache for offline use
+// Assets to precache for offline use (relative paths for GitHub Pages compatibility)
 const PRECACHE_ASSETS = [
-    '/',
-    '/index.html',
-    '/bridge.js',
-    '/pkg/airgap_json_formatter.js',
-    '/pkg/airgap_json_formatter_bg.wasm',
-    '/manifest.json'
-    // Qt WASM assets will be added when Qt build is available:
-    // '/airgap_formatter.js',
-    // '/airgap_formatter.wasm',
-    // '/qtloader.js'
+    './',
+    './index.html',
+    './bridge.js',
+    './pkg/airgap_json_formatter.js',
+    './pkg/airgap_json_formatter_bg.wasm',
+    './manifest.json',
+    './airgap_formatter.js',
+    './airgap_formatter.wasm'
 ];
 
 // Install event - precache all assets

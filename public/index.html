@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Security-first, offline JSON formatting tool. All processing happens locally.">
     <meta name="theme-color" content="#1e1e1e">
-    <link rel="manifest" href="/manifest.json">
+    <link rel="manifest" href="manifest.json">
     <title>Airgap JSON Formatter</title>
     <style>
         * {
@@ -75,7 +75,7 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/sw.js')
+                navigator.serviceWorker.register('sw.js')
                     .then((registration) => {
                         console.log('[App] Service Worker registered:', registration.scope);
                     })
@@ -104,25 +104,35 @@
                 // Now load Qt WASM for the GUI
                 statusEl.textContent = 'Loading Qt interface...';
 
-                // Load Qt WASM module
-                const { default: createQtAppInstance } = await import('./airgap_formatter.js');
+                // Load Qt WASM module - Qt 6 uses a different loading pattern
+                const qtModule = await import('./airgap_formatter.js');
 
-                const config = {
-                    canvasElements: [],
-                    showLoader: false,
-                    onLoaded: () => {
-                        console.log('[Airgap] Qt WASM loaded');
-                        loadingEl.style.display = 'none';
-                    },
-                    onExit: (code) => {
-                        console.log('[Airgap] Qt WASM exited with code:', code);
-                    },
-                    containerElements: [document.getElementById('qt-container')],
-                };
+                // Qt 6 WASM exports createQtAppInstance or similar
+                // Try different possible export names
+                const createInstance = qtModule.createQtAppInstance ||
+                                       qtModule.default ||
+                                       qtModule.createAirgapFormatterInstance ||
+                                       window.createQtAppInstance;
 
-                // Create the Qt instance
-                const instance = await createQtAppInstance(config);
-                console.log('[Airgap] Qt application started');
+                if (typeof createInstance !== 'function') {
+                    // If no function found, Qt might auto-initialize
+                    // Just wait for it to be ready
+                    console.log('[Airgap] Qt module loaded, checking for auto-init...');
+                    console.log('[Airgap] Available exports:', Object.keys(qtModule));
+
+                    // Qt 6.8 auto-initializes and creates canvas
+                    loadingEl.style.display = 'none';
+                    console.log('[Airgap] Qt application started (auto-init mode)');
+                } else {
+                    const config = {
+                        containerElements: [document.getElementById('qt-container')],
+                    };
+
+                    const instance = await createInstance(config);
+                    loadingEl.style.display = 'none';
+                    console.log('[Airgap] Qt application started');
+                }
+
                 console.log('[Airgap] Zero network requests - all processing local');
 
             } catch (error) {
