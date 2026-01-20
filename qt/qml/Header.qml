@@ -63,12 +63,13 @@ Rectangle {
             }
 
             ToolTip {
+                id: airgapTooltip
                 visible: airgapBadgeMouseArea.containsMouse
                 text: "All data processing happens locally in your browser.\nNo data is ever sent to external servers."
                 delay: 500
 
                 contentItem: Text {
-                    text: parent.text
+                    text: airgapTooltip.text
                     color: Theme.textPrimary
                     font.pixelSize: 12
                 }
@@ -118,12 +119,13 @@ Rectangle {
             }
 
             ToolTip {
+                id: offlineTooltip
                 visible: offlineBadgeMouseArea.containsMouse
                 text: "Application is fully loaded and can work without internet connection."
                 delay: 500
 
                 contentItem: Text {
-                    text: parent.text
+                    text: offlineTooltip.text
                     color: Theme.textPrimary
                     font.pixelSize: 12
                 }

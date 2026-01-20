@@ -196,6 +196,39 @@ QVariantMap JsonBridge::validateJson(const QString &input)
     return result;
 }
 
+QString JsonBridge::highlightJson(const QString &input)
+{
+#ifdef __EMSCRIPTEN__
+    try {
+        val window = val::global("window");
+        val jsonBridge = window["JsonBridge"];
+
+        if (jsonBridge.isUndefined() || jsonBridge.isNull()) {
+            // Return escaped HTML if bridge not available
+            QString escaped = input;
+            escaped.replace("&", "&amp;");
+            escaped.replace("<", "&lt;");
+            escaped.replace(">", "&gt;");
+            return escaped;
+        }
+
+        std::string inputStd = input.toStdString();
+        std::string result = jsonBridge.call<std::string>("highlightJson", inputStd);
+        return QString::fromStdString(result);
+    } catch (const std::exception &e) {
+        qWarning() << "highlightJson error:" << e.what();
+    } catch (...) {
+        qWarning() << "Unknown error in highlightJson";
+    }
+#endif
+    // Fallback: return escaped HTML
+    QString escaped = input;
+    escaped.replace("&", "&amp;");
+    escaped.replace("<", "&lt;");
+    escaped.replace(">", "&gt;");
+    return escaped;
+}
+
 void JsonBridge::copyToClipboard(const QString &text)
 {
 #ifdef __EMSCRIPTEN__

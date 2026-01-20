@@ -23,6 +23,7 @@ public:
     Q_INVOKABLE QVariantMap formatJson(const QString &input, const QString &indentType);
     Q_INVOKABLE QVariantMap minifyJson(const QString &input);
     Q_INVOKABLE QVariantMap validateJson(const QString &input);
+    Q_INVOKABLE QString highlightJson(const QString &input);
     Q_INVOKABLE void copyToClipboard(const QString &text);
     Q_INVOKABLE QString readFromClipboard();
 
