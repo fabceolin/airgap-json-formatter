@@ -13,17 +13,11 @@ qt_add_executable(airgap_formatter
     jsonbridge.h
 )
 
-# Mark Theme.qml as singleton
-set_source_files_properties(qml/Theme.qml PROPERTIES
-    QT_QML_SINGLETON_TYPE TRUE
-)
-
 qt_add_qml_module(airgap_formatter
     URI AirgapFormatter
     VERSION 1.0
     QML_FILES
         qml/Main.qml
-        qml/Theme.qml
         qml/Header.qml
         qml/Toolbar.qml
         qml/InputPane.qml

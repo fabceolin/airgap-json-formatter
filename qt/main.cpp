@@ -3,6 +3,7 @@
 #include <QQmlContext>
 #include <QQuickStyle>
 #include "jsonbridge.h"
+#include "theme.h"
 
 int main(int argc, char *argv[])
 {
@@ -18,7 +19,10 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
 
-    // Create and expose JsonBridge to QML
+    // Create and expose Theme and JsonBridge to QML
+    Theme theme;
+    engine.rootContext()->setContextProperty("Theme", &theme);
+
     JsonBridge jsonBridge;
     engine.rootContext()->setContextProperty("JsonBridge", &jsonBridge);
 
