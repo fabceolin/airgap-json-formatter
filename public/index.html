@@ -104,35 +104,28 @@
                 // Now load Qt WASM for the GUI
                 statusEl.textContent = 'Loading Qt interface...';
 
-                // Load Qt WASM module - Qt 6 uses a different loading pattern
-                const qtModule = await import('./airgap_formatter.js');
+                // Import the ES6 module - it exports createQtAppInstance as default
+                const createQtAppInstance = (await import('./airgap_formatter.js')).default;
 
-                // Qt 6 WASM exports createQtAppInstance or similar
-                // Try different possible export names
-                const createInstance = qtModule.createQtAppInstance ||
-                                       qtModule.default ||
-                                       qtModule.createAirgapFormatterInstance ||
-                                       window.createQtAppInstance;
-
-                if (typeof createInstance !== 'function') {
-                    // If no function found, Qt might auto-initialize
-                    // Just wait for it to be ready
-                    console.log('[Airgap] Qt module loaded, checking for auto-init...');
-                    console.log('[Airgap] Available exports:', Object.keys(qtModule));
-
-                    // Qt 6.8 auto-initializes and creates canvas
-                    loadingEl.style.display = 'none';
-                    console.log('[Airgap] Qt application started (auto-init mode)');
-                } else {
-                    const config = {
-                        containerElements: [document.getElementById('qt-container')],
-                    };
-
-                    const instance = await createInstance(config);
-                    loadingEl.style.display = 'none';
-                    console.log('[Airgap] Qt application started');
+                if (typeof createQtAppInstance !== 'function') {
+                    throw new Error('Qt WASM module did not export factory function');
                 }
 
+                // Create canvas for Qt to render into
+                const canvas = document.createElement('canvas');
+                canvas.id = 'qtcanvas';
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                document.getElementById('qt-container').appendChild(canvas);
+
+                // Initialize Qt WASM with canvas
+                const instance = await createQtAppInstance({
+                    canvas: canvas,
+                    arguments: [],
+                });
+
+                loadingEl.style.display = 'none';
+                console.log('[Airgap] Qt application started');
                 console.log('[Airgap] Zero network requests - all processing local');
 
             } catch (error) {
