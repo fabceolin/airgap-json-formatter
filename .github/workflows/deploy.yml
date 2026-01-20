@@ -16,8 +16,9 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  QT_VERSION: '6.10.0'
-  EMSDK_VERSION: '4.0.7'
+  # Qt 6.8.0 + Emscripten 3.1.56 is a known-working combination
+  QT_VERSION: '6.8.0'
+  EMSDK_VERSION: '3.1.56'
 
 jobs:
   build:
