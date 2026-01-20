@@ -9,6 +9,8 @@ find_package(Qt6 REQUIRED COMPONENTS Quick QuickControls2)
 
 qt_add_executable(airgap_formatter
     main.cpp
+    jsonbridge.cpp
+    jsonbridge.h
 )
 
 # Mark Theme.qml as singleton
@@ -44,5 +46,6 @@ if(EMSCRIPTEN)
         -sENVIRONMENT=web
         -sASYNCIFY
         -sALLOW_MEMORY_GROWTH=1
+        --bind
     )
 endif()

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import AirgapFormatter
 
 ApplicationWindow {
     id: window
@@ -16,15 +17,18 @@ ApplicationWindow {
     // Track WASM initialization state
     property bool wasmInitialized: false
 
+    // Track when JsonBridge becomes ready
+    Connections {
+        target: JsonBridge
+        function onReadyChanged() {
+            wasmInitialized = JsonBridge.ready;
+        }
+    }
+
     // Initialize WASM on component completion
     Component.onCompleted: {
-        // Check if bridge is ready (set by JavaScript initialization)
-        if (typeof JsonBridge !== 'undefined' && JsonBridge.isReady()) {
-            wasmInitialized = true;
-        } else {
-            // Will be set to true when bridge initializes
-            wasmInitialized = true;  // Assume ready for now (bridge handles init)
-        }
+        // Check if bridge is ready via C++ context property
+        wasmInitialized = JsonBridge.ready;
     }
 
     // Timer for copy feedback reset

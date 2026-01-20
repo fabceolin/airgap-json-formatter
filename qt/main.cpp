@@ -1,6 +1,8 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
+#include <QQmlContext>
 #include <QQuickStyle>
+#include "jsonbridge.h"
 
 int main(int argc, char *argv[])
 {
@@ -15,6 +17,10 @@ int main(int argc, char *argv[])
     QQuickStyle::setStyle("Fusion");
 
     QQmlApplicationEngine engine;
+
+    // Create and expose JsonBridge to QML
+    JsonBridge jsonBridge;
+    engine.rootContext()->setContextProperty("JsonBridge", &jsonBridge);
 
     // Load main QML file
     const QUrl url(QStringLiteral("qrc:/AirgapFormatter/qml/Main.qml"));
