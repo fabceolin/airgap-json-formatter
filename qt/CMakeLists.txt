@@ -11,6 +11,8 @@ qt_add_executable(airgap_formatter
     main.cpp
     jsonbridge.cpp
     jsonbridge.h
+    theme.cpp
+    theme.h
 )
 
 qt_add_qml_module(airgap_formatter
