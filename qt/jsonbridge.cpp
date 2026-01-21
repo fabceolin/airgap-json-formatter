@@ -1,6 +1,7 @@
 #include "jsonbridge.h"
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QDebug>
 
 #ifdef __EMSCRIPTEN__
@@ -285,4 +286,204 @@ QString JsonBridge::readFromClipboard()
     qDebug() << "Clipboard read not available outside WebAssembly";
 #endif
     return QString();
+}
+
+// History methods
+
+void JsonBridge::saveToHistory(const QString &json)
+{
+#ifdef __EMSCRIPTEN__
+    try {
+        val window = val::global("window");
+        val jsonBridge = window["JsonBridge"];
+
+        if (!jsonBridge.isUndefined() && !jsonBridge.isNull()) {
+            std::string jsonStd = json.toStdString();
+            val promise = jsonBridge.call<val>("saveToHistory", jsonStd);
+            val result = promise.await();
+
+            if (!result.isUndefined() && !result.isNull()) {
+                std::string resultStr = result.as<std::string>();
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(resultStr).toUtf8());
+                QJsonObject obj = doc.object();
+                bool success = obj["success"].toBool();
+                QString id = obj["id"].toString();
+                emit historySaved(success, id);
+            }
+        }
+    } catch (const std::exception &e) {
+        qWarning() << "Failed to save to history:" << e.what();
+        emit historySaved(false, QString());
+    } catch (...) {
+        qWarning() << "Failed to save to history";
+        emit historySaved(false, QString());
+    }
+#else
+    qDebug() << "History not available outside WebAssembly";
+    emit historySaved(false, QString());
+#endif
+}
+
+QVariantList JsonBridge::loadHistory()
+{
+    QVariantList entries;
+
+#ifdef __EMSCRIPTEN__
+    try {
+        val window = val::global("window");
+        val jsonBridge = window["JsonBridge"];
+
+        if (!jsonBridge.isUndefined() && !jsonBridge.isNull()) {
+            val promise = jsonBridge.call<val>("loadHistory");
+            val result = promise.await();
+
+            if (!result.isUndefined() && !result.isNull()) {
+                std::string resultStr = result.as<std::string>();
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(resultStr).toUtf8());
+                QJsonObject obj = doc.object();
+
+                if (obj["success"].toBool()) {
+                    QJsonArray entriesArray = obj["entries"].toArray();
+                    for (const QJsonValue &val : entriesArray) {
+                        QJsonObject entry = val.toObject();
+                        QVariantMap entryMap;
+                        entryMap["id"] = entry["id"].toString();
+                        entryMap["content"] = entry["content"].toString();
+                        entryMap["timestamp"] = entry["timestamp"].toString();
+                        entryMap["preview"] = entry["preview"].toString();
+                        entryMap["size"] = entry["size"].toInt();
+                        entries.append(entryMap);
+                    }
+                }
+            }
+        }
+    } catch (const std::exception &e) {
+        qWarning() << "Failed to load history:" << e.what();
+    } catch (...) {
+        qWarning() << "Failed to load history";
+    }
+#else
+    qDebug() << "History not available outside WebAssembly";
+#endif
+
+    emit historyLoaded(entries);
+    return entries;
+}
+
+QString JsonBridge::getHistoryEntry(const QString &id)
+{
+#ifdef __EMSCRIPTEN__
+    try {
+        val window = val::global("window");
+        val jsonBridge = window["JsonBridge"];
+
+        if (!jsonBridge.isUndefined() && !jsonBridge.isNull()) {
+            std::string idStd = id.toStdString();
+            val promise = jsonBridge.call<val>("getHistoryEntry", idStd);
+            val result = promise.await();
+
+            if (!result.isUndefined() && !result.isNull()) {
+                std::string resultStr = result.as<std::string>();
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(resultStr).toUtf8());
+                QJsonObject obj = doc.object();
+
+                if (obj["success"].toBool()) {
+                    QJsonObject entry = obj["entry"].toObject();
+                    QString content = entry["content"].toString();
+                    emit historyEntryLoaded(content);
+                    return content;
+                }
+            }
+        }
+    } catch (const std::exception &e) {
+        qWarning() << "Failed to get history entry:" << e.what();
+    } catch (...) {
+        qWarning() << "Failed to get history entry";
+    }
+#else
+    qDebug() << "History not available outside WebAssembly";
+#endif
+
+    emit historyEntryLoaded(QString());
+    return QString();
+}
+
+void JsonBridge::deleteHistoryEntry(const QString &id)
+{
+#ifdef __EMSCRIPTEN__
+    try {
+        val window = val::global("window");
+        val jsonBridge = window["JsonBridge"];
+
+        if (!jsonBridge.isUndefined() && !jsonBridge.isNull()) {
+            std::string idStd = id.toStdString();
+            val promise = jsonBridge.call<val>("deleteHistoryEntry", idStd);
+            val result = promise.await();
+
+            if (!result.isUndefined() && !result.isNull()) {
+                std::string resultStr = result.as<std::string>();
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(resultStr).toUtf8());
+                QJsonObject obj = doc.object();
+                emit historyEntryDeleted(obj["success"].toBool());
+                return;
+            }
+        }
+    } catch (const std::exception &e) {
+        qWarning() << "Failed to delete history entry:" << e.what();
+    } catch (...) {
+        qWarning() << "Failed to delete history entry";
+    }
+#else
+    qDebug() << "History not available outside WebAssembly";
+#endif
+
+    emit historyEntryDeleted(false);
+}
+
+void JsonBridge::clearHistory()
+{
+#ifdef __EMSCRIPTEN__
+    try {
+        val window = val::global("window");
+        val jsonBridge = window["JsonBridge"];
+
+        if (!jsonBridge.isUndefined() && !jsonBridge.isNull()) {
+            val promise = jsonBridge.call<val>("clearHistory");
+            val result = promise.await();
+
+            if (!result.isUndefined() && !result.isNull()) {
+                std::string resultStr = result.as<std::string>();
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(resultStr).toUtf8());
+                QJsonObject obj = doc.object();
+                emit historyCleared(obj["success"].toBool());
+                return;
+            }
+        }
+    } catch (const std::exception &e) {
+        qWarning() << "Failed to clear history:" << e.what();
+    } catch (...) {
+        qWarning() << "Failed to clear history";
+    }
+#else
+    qDebug() << "History not available outside WebAssembly";
+#endif
+
+    emit historyCleared(false);
+}
+
+bool JsonBridge::isHistoryAvailable()
+{
+#ifdef __EMSCRIPTEN__
+    try {
+        val window = val::global("window");
+        val jsonBridge = window["JsonBridge"];
+
+        if (!jsonBridge.isUndefined() && !jsonBridge.isNull()) {
+            return jsonBridge.call<bool>("isHistoryAvailable");
+        }
+    } catch (...) {
+        qWarning() << "Failed to check history availability";
+    }
+#endif
+    return false;
 }

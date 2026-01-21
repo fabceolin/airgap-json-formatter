@@ -163,6 +163,91 @@ const JsonBridge = {
             console.error('[Bridge] Clipboard read failed:', e);
             return '';
         }
+    },
+
+    // ========== History Storage Methods ==========
+
+    /**
+     * Initialize history storage
+     * @returns {Promise<boolean>}
+     */
+    async initHistory() {
+        if (window.HistoryStorage) {
+            return await window.HistoryStorage.init();
+        }
+        console.warn('[Bridge] HistoryStorage not available');
+        return false;
+    },
+
+    /**
+     * Save JSON to history
+     * @param {string} json - JSON content to save
+     * @returns {Promise<string>} JSON result with success/error
+     */
+    async saveToHistory(json) {
+        if (!window.HistoryStorage) {
+            return JSON.stringify({ success: false, error: 'HistoryStorage not available' });
+        }
+        const result = await window.HistoryStorage.save(json);
+        return JSON.stringify(result);
+    },
+
+    /**
+     * Load all history entries
+     * @returns {Promise<string>} JSON array of entries
+     */
+    async loadHistory() {
+        if (!window.HistoryStorage) {
+            return JSON.stringify({ success: false, error: 'HistoryStorage not available' });
+        }
+        const result = await window.HistoryStorage.loadAll();
+        return JSON.stringify(result);
+    },
+
+    /**
+     * Get a single history entry by ID
+     * @param {string} id - Entry ID
+     * @returns {Promise<string>} JSON entry or error
+     */
+    async getHistoryEntry(id) {
+        if (!window.HistoryStorage) {
+            return JSON.stringify({ success: false, error: 'HistoryStorage not available' });
+        }
+        const result = await window.HistoryStorage.get(id);
+        return JSON.stringify(result);
+    },
+
+    /**
+     * Delete a history entry by ID
+     * @param {string} id - Entry ID to delete
+     * @returns {Promise<string>} JSON result
+     */
+    async deleteHistoryEntry(id) {
+        if (!window.HistoryStorage) {
+            return JSON.stringify({ success: false, error: 'HistoryStorage not available' });
+        }
+        const result = await window.HistoryStorage.delete(id);
+        return JSON.stringify(result);
+    },
+
+    /**
+     * Clear all history entries
+     * @returns {Promise<string>} JSON result
+     */
+    async clearHistory() {
+        if (!window.HistoryStorage) {
+            return JSON.stringify({ success: false, error: 'HistoryStorage not available' });
+        }
+        const result = await window.HistoryStorage.clear();
+        return JSON.stringify(result);
+    },
+
+    /**
+     * Check if history storage is available
+     * @returns {boolean}
+     */
+    isHistoryAvailable() {
+        return window.HistoryStorage && window.HistoryStorage.isAvailable();
     }
 };
 

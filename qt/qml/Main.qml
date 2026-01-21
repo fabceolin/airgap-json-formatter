@@ -134,6 +134,8 @@ ApplicationWindow {
                     JsonBridge.loadTreeModel(result.result);
                     // Re-validate after formatting
                     validateInput();
+                    // Auto-save to history
+                    JsonBridge.saveToHistory(result.result);
                 } else {
                     currentFormattedJson = "";
                     outputPane.text = "Error: " + result.error;
@@ -152,6 +154,8 @@ ApplicationWindow {
                     JsonBridge.loadTreeModel(result.result);
                     // Re-validate after minifying
                     validateInput();
+                    // Auto-save to history
+                    JsonBridge.saveToHistory(result.result);
                 } else {
                     currentFormattedJson = "";
                     outputPane.text = "Error: " + result.error;
@@ -181,6 +185,10 @@ ApplicationWindow {
                 statusBar.maxDepth = 0;
                 inputPane.errorLine = -1;
                 inputPane.errorMessage = "";
+            }
+
+            onLoadHistoryRequested: {
+                historyPanel.open();
             }
         }
 
@@ -237,6 +245,18 @@ ApplicationWindow {
         }
     }
 
+    // History panel (drawer from right)
+    HistoryPanel {
+        id: historyPanel
+        parent: Overlay.overlay
+
+        onEntrySelected: (content) => {
+            inputPane.text = content;
+            // Auto-format the loaded content
+            toolbar.formatRequested(toolbar.selectedIndent);
+        }
+    }
+
     // Keyboard shortcuts
     Shortcut {
         sequence: "Ctrl+Shift+F"
@@ -282,6 +302,8 @@ ApplicationWindow {
                         outputPane.text = result.result;
                         JsonBridge.loadTreeModel(result.result);
                         validateInput();
+                        // Auto-save to history
+                        JsonBridge.saveToHistory(result.result);
                     } else {
                         // Invalid JSON - just paste without formatting
                         inputPane.text = text;
@@ -311,5 +333,11 @@ ApplicationWindow {
     Shortcut {
         sequence: "Ctrl+T"
         onActivated: viewMode = (viewMode === "tree") ? "text" : "tree"
+    }
+
+    // Open history panel
+    Shortcut {
+        sequence: "Ctrl+O"
+        onActivated: historyPanel.open()
     }
 }

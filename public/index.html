@@ -90,6 +90,7 @@
     <script type="module">
         // First, initialize the Rust WASM bridge for JSON processing
         import { initBridge } from './bridge.js';
+        import { initHistoryDB } from './history-storage.js';
 
         const statusEl = document.getElementById('status');
         const loadingEl = document.getElementById('loading');
@@ -100,6 +101,10 @@
                 statusEl.textContent = 'Loading JSON processor...';
                 await initBridge();
                 console.log('[Airgap] Rust WASM JSON processor ready');
+
+                // Initialize history storage
+                await initHistoryDB();
+                console.log('[Airgap] History storage ready');
 
                 // Now load Qt WASM for the GUI
                 statusEl.textContent = 'Loading Qt interface...';

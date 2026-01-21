@@ -15,6 +15,7 @@ Rectangle {
     signal viewModeToggled()
     signal expandAllRequested()
     signal collapseAllRequested()
+    signal loadHistoryRequested()
 
     property string selectedIndent: "spaces:4"
     property alias copyButtonText: copyButton.text
@@ -242,6 +243,32 @@ Rectangle {
             width: 1
             height: 30
             color: Theme.border
+        }
+
+        Button {
+            id: loadButton
+            text: "Load"
+            onClicked: toolbar.loadHistoryRequested()
+
+            contentItem: Text {
+                text: loadButton.text
+                color: Theme.textPrimary
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                font.pixelSize: 13
+            }
+            background: Rectangle {
+                implicitWidth: 70
+                implicitHeight: 34
+                color: loadButton.pressed ? Theme.accent : Theme.backgroundSecondary
+                border.color: loadButton.activeFocus ? Theme.focusRing : Theme.border
+                border.width: loadButton.activeFocus ? Theme.focusRingWidth : 1
+                radius: 4
+            }
+
+            ToolTip.visible: hovered
+            ToolTip.text: "Load from History (Ctrl+O)"
+            ToolTip.delay: 500
         }
 
         Button {

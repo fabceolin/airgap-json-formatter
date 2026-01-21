@@ -31,7 +31,20 @@ public:
     Q_INVOKABLE QString readFromClipboard();
     Q_INVOKABLE bool loadTreeModel(const QString &json);
 
+    // History methods
+    Q_INVOKABLE void saveToHistory(const QString &json);
+    Q_INVOKABLE QVariantList loadHistory();
+    Q_INVOKABLE QString getHistoryEntry(const QString &id);
+    Q_INVOKABLE void deleteHistoryEntry(const QString &id);
+    Q_INVOKABLE void clearHistory();
+    Q_INVOKABLE bool isHistoryAvailable();
+
 signals:
+    void historySaved(bool success, const QString &id);
+    void historyLoaded(const QVariantList &entries);
+    void historyEntryLoaded(const QString &content);
+    void historyEntryDeleted(bool success);
+    void historyCleared(bool success);
     void readyChanged();
 
 private:
