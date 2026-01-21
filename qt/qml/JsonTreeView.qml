@@ -111,7 +111,7 @@ Rectangle {
 
                 Rectangle {
                     anchors.fill: parent
-                    color: delegateRoot.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
+                    color: (delegateRoot.hovered || copyIcons.buttonsHovered) ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
                 }
 
                 MouseArea {
@@ -262,7 +262,9 @@ Rectangle {
                     anchors.rightMargin: 12
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 4
-                    opacity: delegateRoot.hovered ? 1.0 : 0.0
+                    // Keep visible if row is hovered OR if any button inside is hovered
+                    property bool buttonsHovered: copyValueHover.hovered || copyPathHover.hovered
+                    opacity: (delegateRoot.hovered || buttonsHovered) ? 1.0 : 0.0
                     visible: opacity > 0
 
                     Behavior on opacity {
