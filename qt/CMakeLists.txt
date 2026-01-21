@@ -30,6 +30,7 @@ qt_add_qml_module(airgap_formatter
         qml/OutputPane.qml
         qml/JsonTreeView.qml
         qml/StatusBar.qml
+        qml/HistoryPanel.qml
 )
 
 target_link_libraries(airgap_formatter PRIVATE
