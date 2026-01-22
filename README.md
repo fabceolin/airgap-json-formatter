@@ -1,6 +1,6 @@
 # Airgap JSON Formatter
 
-**Airgap JSON Formatter** is a security-first tool for manipulating JSON data. It combines the performance and safety of **Rust** with a robust **Qt** interface, delivered entirely via the browser using **WebAssembly**.
+**Airgap JSON Formatter** is a security-first, installable PWA for manipulating JSON data. It combines the performance and safety of **Rust** with a robust **Qt** interface, delivered entirely via the browser using **WebAssembly**. Install it on your device for instant offline access!
 
 ## Live Demo
 
@@ -8,11 +8,12 @@
 
 ### Quick Start
 1. Open the app in your browser
-2. Paste or type JSON in the left pane
-3. Click "Format" to prettify or "Minify" to compress
-4. Copy the result to clipboard
+2. **Optional:** Click the install icon in your address bar to add to your device
+3. Paste or type JSON in the left pane
+4. Click "Format" to prettify or "Minify" to compress
+5. Copy the result to clipboard
 
-The app works completely offline once loaded - feel free to disconnect from the internet!
+The app works completely offline once loaded or installed - feel free to disconnect from the internet!
 
 ## 🔒 Privacy & Security Architecture
 
@@ -32,6 +33,7 @@ Despite being hosted on the web, this application executes **100% client-side**.
 
 ## ✨ Features
 
+* **Installable PWA:** Add to your home screen or desktop for native app-like experience. Works offline after installation.
 * **Offline Capability:** Fully functional without an internet connection after initial load.
 * **High Performance:** Rust-based parsing engine handles large JSON files efficiently.
 * **Strict Validation:** Instant syntax checking and error reporting.
