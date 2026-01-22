@@ -1,0 +1,110 @@
+# Dockerfile for Airgap JSON Formatter DESKTOP development
+# Ubuntu 24.04 with Qt 6.8.0 Desktop and Rust
+
+FROM ubuntu:24.04
+
+# Avoid interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Version configuration
+ENV QT_VERSION=6.8.0
+ENV RUST_VERSION=stable
+
+# Install system dependencies including X11/OpenGL for Qt desktop
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    curl \
+    wget \
+    python3 \
+    python3-pip \
+    python3-venv \
+    pipx \
+    pkg-config \
+    libssl-dev \
+    xz-utils \
+    p7zip-full \
+    # Qt desktop dependencies
+    libglib2.0-0 \
+    libgl1-mesa-dev \
+    libxkbcommon-dev \
+    libxkbcommon-x11-0 \
+    libxcb-cursor0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render-util0 \
+    libxcb-shape0 \
+    libxcb-xfixes0 \
+    libxcb-xinerama0 \
+    libxcb-xkb1 \
+    libxcb1 \
+    libx11-xcb1 \
+    libfontconfig1 \
+    libfreetype6 \
+    libdbus-1-3 \
+    libegl1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain ${RUST_VERSION}
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Download and install Qt Desktop using pipx
+WORKDIR /opt
+RUN pipx install aqtinstall && \
+    /root/.local/bin/aqt install-qt linux desktop ${QT_VERSION} -m qtshadertools
+
+# Set Qt environment variables and fix permissions
+ENV QT_ROOT_DIR=/opt/${QT_VERSION}
+ENV QT_HOST_PATH=/opt/${QT_VERSION}/gcc_64
+ENV PATH="${QT_HOST_PATH}/bin:${PATH}"
+ENV LD_LIBRARY_PATH="${QT_HOST_PATH}/lib:${LD_LIBRARY_PATH}"
+
+# Fix permissions for Qt binaries
+RUN chmod +x /opt/${QT_VERSION}/gcc_64/bin/*
+
+# Create working directory
+WORKDIR /workspace
+
+# Desktop build script
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "=== Building Qt Desktop ==="\n\
+cd /workspace/qt\n\
+rm -rf build-desktop\n\
+mkdir -p build-desktop && cd build-desktop\n\
+\n\
+${QT_HOST_PATH}/bin/qt-cmake .. \\\n\
+    -DCMAKE_BUILD_TYPE=Debug \\\n\
+    -DCMAKE_PREFIX_PATH=${QT_HOST_PATH}\n\
+\n\
+cmake --build . --parallel $(nproc)\n\
+\n\
+echo "=== Build complete! ==="\n\
+echo "Binary: /workspace/qt/build-desktop/airgap_formatter"\n\
+ls -la airgap_formatter\n\
+' > /usr/local/bin/build-desktop.sh && chmod +x /usr/local/bin/build-desktop.sh
+
+# Run desktop app script (requires X11 forwarding)
+RUN echo '#!/bin/bash\n\
+cd /workspace/qt/build-desktop\n\
+./airgap_formatter\n\
+' > /usr/local/bin/run-desktop.sh && chmod +x /usr/local/bin/run-desktop.sh
+
+# Test script
+RUN echo '#!/bin/bash\n\
+cargo test --verbose\n\
+' > /usr/local/bin/test.sh && chmod +x /usr/local/bin/test.sh
+
+# Default command
+CMD ["bash"]
+
+# Labels
+LABEL maintainer="Airgap JSON Formatter"
+LABEL version="1.0"
+LABEL description="Desktop development environment for Airgap JSON Formatter"

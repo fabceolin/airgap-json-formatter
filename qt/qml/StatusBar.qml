@@ -34,7 +34,7 @@ Rectangle {
             width: validationRow.width + 16
             height: 22
             radius: 4
-            color: statusBar.isValid ? "#2d4a2d" : "#4a2d2d"
+            color: statusBar.isValid ? Theme.badgeSuccessBg : Theme.badgeErrorBg
 
             Row {
                 id: validationRow

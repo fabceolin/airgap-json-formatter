@@ -3,10 +3,231 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QDebug>
+#include <QGuiApplication>
+#include <QClipboard>
+#include <QStandardPaths>
+#include <QDir>
+#include <QFile>
+#include <QDateTime>
+#include <QUuid>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/val.h>
 using namespace emscripten;
+#endif
+
+// Desktop-only: JSON formatting with indentation
+#ifndef __EMSCRIPTEN__
+static QString formatJsonNative(const QString &input, const QString &indentType) {
+    QJsonParseError error;
+    QJsonDocument doc = QJsonDocument::fromJson(input.toUtf8(), &error);
+
+    if (error.error != QJsonParseError::NoError) {
+        return QString();
+    }
+
+    QJsonDocument::JsonFormat format = QJsonDocument::Indented;
+    return QString::fromUtf8(doc.toJson(format));
+}
+
+static QString minifyJsonNative(const QString &input) {
+    QJsonParseError error;
+    QJsonDocument doc = QJsonDocument::fromJson(input.toUtf8(), &error);
+
+    if (error.error != QJsonParseError::NoError) {
+        return QString();
+    }
+
+    return QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+}
+
+static void countJsonStats(const QJsonValue &value, QVariantMap &stats, int depth) {
+    int maxDepth = stats["max_depth"].toInt();
+    if (depth > maxDepth) {
+        stats["max_depth"] = depth;
+    }
+
+    if (value.isObject()) {
+        stats["object_count"] = stats["object_count"].toInt() + 1;
+        QJsonObject obj = value.toObject();
+        stats["total_keys"] = stats["total_keys"].toInt() + obj.keys().size();
+        for (const QString &key : obj.keys()) {
+            countJsonStats(obj[key], stats, depth + 1);
+        }
+    } else if (value.isArray()) {
+        stats["array_count"] = stats["array_count"].toInt() + 1;
+        QJsonArray arr = value.toArray();
+        for (const QJsonValue &v : arr) {
+            countJsonStats(v, stats, depth + 1);
+        }
+    } else if (value.isString()) {
+        stats["string_count"] = stats["string_count"].toInt() + 1;
+    } else if (value.isDouble()) {
+        stats["number_count"] = stats["number_count"].toInt() + 1;
+    } else if (value.isBool()) {
+        stats["boolean_count"] = stats["boolean_count"].toInt() + 1;
+    } else if (value.isNull()) {
+        stats["null_count"] = stats["null_count"].toInt() + 1;
+    }
+}
+
+static QString getHistoryFilePath() {
+    // Check if running in Docker/container (workspace directory exists)
+    QDir workspaceDir("/workspace");
+    if (workspaceDir.exists()) {
+        // Use workspace directory for persistence in Docker
+        return "/workspace/.history.json";
+    }
+
+    // Use standard app data location for native desktop
+    QString dataPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir dir(dataPath);
+    if (!dir.exists()) {
+        dir.mkpath(".");
+    }
+    return dataPath + "/history.json";
+}
+
+static QJsonArray loadHistoryFromFile() {
+    QFile file(getHistoryFilePath());
+    if (!file.exists()) {
+        return QJsonArray();
+    }
+    if (!file.open(QIODevice::ReadOnly)) {
+        return QJsonArray();
+    }
+    QByteArray data = file.readAll();
+    file.close();
+
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    if (doc.isArray()) {
+        return doc.array();
+    }
+    return QJsonArray();
+}
+
+static bool saveHistoryToFile(const QJsonArray &history) {
+    QFile file(getHistoryFilePath());
+    if (!file.open(QIODevice::WriteOnly)) {
+        return false;
+    }
+    QJsonDocument doc(history);
+    file.write(doc.toJson());
+    file.close();
+    return true;
+}
+
+static QString highlightJsonNative(const QString &input) {
+    // Syntax highlighting for desktop - produces jq-like colored output
+    // Wrap in <pre> to preserve whitespace and newlines
+    QString result = "<pre style=\"margin:0; font-family:monospace; white-space:pre-wrap;\">";
+    bool inString = false;
+    bool inKey = false;
+    bool escapeNext = false;
+
+    for (int i = 0; i < input.length(); ++i) {
+        QChar c = input[i];
+
+        if (escapeNext) {
+            // Handle escaped character - escape HTML entities if needed
+            if (c == '<') result += "&lt;";
+            else if (c == '>') result += "&gt;";
+            else if (c == '&') result += "&amp;";
+            else result += c;
+            escapeNext = false;
+            continue;
+        }
+
+        if (c == '\\' && inString) {
+            result += c;
+            escapeNext = true;
+            continue;
+        }
+
+        if (c == '"') {
+            if (!inString) {
+                // Check if this is a key (followed eventually by :)
+                int j = i + 1;
+                while (j < input.length() && input[j] != '"') {
+                    if (input[j] == '\\') j++;
+                    j++;
+                }
+                j++; // skip closing quote
+                while (j < input.length() && input[j].isSpace()) j++;
+                inKey = (j < input.length() && input[j] == ':');
+
+                if (inKey) {
+                    result += "<span style=\"color:#8fa1b3;\">\"";  // Keys: light blue (jq style)
+                } else {
+                    result += "<span style=\"color:#a3be8c;\">\"";  // Strings: green (jq style)
+                }
+                inString = true;
+            } else {
+                result += "\"</span>";
+                inString = false;
+                inKey = false;
+            }
+            continue;
+        }
+
+        if (inString) {
+            // Escape HTML entities
+            if (c == '<') result += "&lt;";
+            else if (c == '>') result += "&gt;";
+            else if (c == '&') result += "&amp;";
+            else result += c;
+            continue;
+        }
+
+        // Numbers
+        if (c.isDigit() || (c == '-' && i + 1 < input.length() && input[i+1].isDigit())) {
+            result += "<span style=\"color:#d08770;\">";  // Numbers: orange (jq style)
+            while (i < input.length() && (input[i].isDigit() || input[i] == '.' || input[i] == '-' || input[i] == 'e' || input[i] == 'E' || input[i] == '+')) {
+                result += input[i];
+                i++;
+            }
+            result += "</span>";
+            i--;
+            continue;
+        }
+
+        // true/false
+        if (input.mid(i, 4) == "true") {
+            result += "<span style=\"color:#b48ead;\">true</span>";  // Booleans: purple (jq style)
+            i += 3;
+            continue;
+        }
+        if (input.mid(i, 5) == "false") {
+            result += "<span style=\"color:#b48ead;\">false</span>";  // Booleans: purple
+            i += 4;
+            continue;
+        }
+        // null
+        if (input.mid(i, 4) == "null") {
+            result += "<span style=\"color:#bf616a;\">null</span>";  // Null: red (jq style)
+            i += 3;
+            continue;
+        }
+
+        // Brackets and braces
+        if (c == '{' || c == '}' || c == '[' || c == ']') {
+            result += "<span style=\"color:#c0c5ce;\">" + QString(c) + "</span>";  // Punctuation: light gray
+            continue;
+        }
+
+        // Colon and comma
+        if (c == ':' || c == ',') {
+            result += "<span style=\"color:#c0c5ce;\">" + QString(c) + "</span>";  // Punctuation: light gray
+            continue;
+        }
+
+        // All other characters (whitespace, newlines) - pass through
+        result += c;
+    }
+
+    result += "</pre>";
+    return result;
+}
 #endif
 
 JsonBridge::JsonBridge(QObject *parent)
@@ -38,7 +259,8 @@ void JsonBridge::checkReady()
         }
     }
 #else
-    m_ready = false;
+    // Desktop mode is always ready
+    m_ready = true;
 #endif
     emit readyChanged();
 }
@@ -84,7 +306,14 @@ QVariantMap JsonBridge::formatJson(const QString &input, const QString &indentTy
         result["error"] = "Unknown error in formatJson";
     }
 #else
-    result["error"] = "Not running in WebAssembly";
+    // Desktop native implementation
+    QString formatted = formatJsonNative(input, indentType);
+    if (formatted.isEmpty()) {
+        result["error"] = "Invalid JSON";
+    } else {
+        result["success"] = true;
+        result["result"] = formatted;
+    }
 #endif
 
     return result;
@@ -125,7 +354,14 @@ QVariantMap JsonBridge::minifyJson(const QString &input)
         result["error"] = "Unknown error in minifyJson";
     }
 #else
-    result["error"] = "Not running in WebAssembly";
+    // Desktop native implementation
+    QString minified = minifyJsonNative(input);
+    if (minified.isEmpty()) {
+        result["error"] = "Invalid JSON";
+    } else {
+        result["success"] = true;
+        result["result"] = minified;
+    }
 #endif
 
     return result;
@@ -197,12 +433,46 @@ QVariantMap JsonBridge::validateJson(const QString &input)
         result["stats"] = QVariantMap();
     }
 #else
-    QVariantMap error;
-    error["message"] = "Not running in WebAssembly";
-    error["line"] = 0;
-    error["column"] = 0;
-    result["error"] = error;
-    result["stats"] = QVariantMap();
+    // Desktop native implementation
+    QJsonParseError parseError;
+    QJsonDocument doc = QJsonDocument::fromJson(input.toUtf8(), &parseError);
+
+    if (parseError.error != QJsonParseError::NoError) {
+        QVariantMap error;
+        error["message"] = parseError.errorString();
+        // Calculate line and column from offset
+        int line = 1, column = 1;
+        for (int i = 0; i < parseError.offset && i < input.length(); ++i) {
+            if (input[i] == '\n') {
+                line++;
+                column = 1;
+            } else {
+                column++;
+            }
+        }
+        error["line"] = line;
+        error["column"] = column;
+        result["error"] = error;
+        result["stats"] = QVariantMap();
+    } else {
+        result["isValid"] = true;
+        QVariantMap stats;
+        stats["object_count"] = 0;
+        stats["array_count"] = 0;
+        stats["string_count"] = 0;
+        stats["number_count"] = 0;
+        stats["boolean_count"] = 0;
+        stats["null_count"] = 0;
+        stats["total_keys"] = 0;
+        stats["max_depth"] = 0;
+
+        if (doc.isObject()) {
+            countJsonStats(doc.object(), stats, 1);
+        } else if (doc.isArray()) {
+            countJsonStats(doc.array(), stats, 1);
+        }
+        result["stats"] = stats;
+    }
 #endif
 
     return result;
@@ -232,13 +502,16 @@ QString JsonBridge::highlightJson(const QString &input)
     } catch (...) {
         qWarning() << "Unknown error in highlightJson";
     }
-#endif
     // Fallback: return escaped HTML
     QString escaped = input;
     escaped.replace("&", "&amp;");
     escaped.replace("<", "&lt;");
     escaped.replace(">", "&gt;");
     return escaped;
+#else
+    // Desktop native implementation
+    return highlightJsonNative(input);
+#endif
 }
 
 void JsonBridge::copyToClipboard(const QString &text)
@@ -256,7 +529,11 @@ void JsonBridge::copyToClipboard(const QString &text)
         qWarning() << "Failed to copy to clipboard";
     }
 #else
-    qDebug() << "Clipboard copy not available outside WebAssembly";
+    // Desktop native implementation
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    if (clipboard) {
+        clipboard->setText(text);
+    }
 #endif
 }
 
@@ -282,8 +559,13 @@ QString JsonBridge::readFromClipboard()
     } catch (...) {
         qWarning() << "Failed to read from clipboard";
     }
+    return QString();
 #else
-    qDebug() << "Clipboard read not available outside WebAssembly";
+    // Desktop native implementation
+    QClipboard *clipboard = QGuiApplication::clipboard();
+    if (clipboard) {
+        return clipboard->text();
+    }
 #endif
     return QString();
 }
@@ -319,8 +601,30 @@ void JsonBridge::saveToHistory(const QString &json)
         emit historySaved(false, QString());
     }
 #else
-    qDebug() << "History not available outside WebAssembly";
-    emit historySaved(false, QString());
+    // Desktop native implementation
+    QJsonArray history = loadHistoryFromFile();
+
+    QString id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    QString timestamp = QDateTime::currentDateTime().toString(Qt::ISODate);
+    QString preview = json.left(100).simplified();
+    if (json.length() > 100) preview += "...";
+
+    QJsonObject entry;
+    entry["id"] = id;
+    entry["content"] = json;
+    entry["timestamp"] = timestamp;
+    entry["preview"] = preview;
+    entry["size"] = json.size();
+
+    // Add to beginning of array (most recent first)
+    QJsonArray newHistory;
+    newHistory.append(entry);
+    for (int i = 0; i < history.size() && i < 49; ++i) { // Keep max 50 entries
+        newHistory.append(history[i]);
+    }
+
+    bool success = saveHistoryToFile(newHistory);
+    emit historySaved(success, id);
 #endif
 }
 
@@ -363,7 +667,18 @@ QVariantList JsonBridge::loadHistory()
         qWarning() << "Failed to load history";
     }
 #else
-    qDebug() << "History not available outside WebAssembly";
+    // Desktop native implementation
+    QJsonArray history = loadHistoryFromFile();
+    for (const QJsonValue &val : history) {
+        QJsonObject entry = val.toObject();
+        QVariantMap entryMap;
+        entryMap["id"] = entry["id"].toString();
+        entryMap["content"] = entry["content"].toString();
+        entryMap["timestamp"] = entry["timestamp"].toString();
+        entryMap["preview"] = entry["preview"].toString();
+        entryMap["size"] = entry["size"].toInt();
+        entries.append(entryMap);
+    }
 #endif
 
     emit historyLoaded(entries);
@@ -401,7 +716,16 @@ QString JsonBridge::getHistoryEntry(const QString &id)
         qWarning() << "Failed to get history entry";
     }
 #else
-    qDebug() << "History not available outside WebAssembly";
+    // Desktop native implementation
+    QJsonArray history = loadHistoryFromFile();
+    for (const QJsonValue &val : history) {
+        QJsonObject entry = val.toObject();
+        if (entry["id"].toString() == id) {
+            QString content = entry["content"].toString();
+            emit historyEntryLoaded(content);
+            return content;
+        }
+    }
 #endif
 
     emit historyEntryLoaded(QString());
@@ -434,7 +758,23 @@ void JsonBridge::deleteHistoryEntry(const QString &id)
         qWarning() << "Failed to delete history entry";
     }
 #else
-    qDebug() << "History not available outside WebAssembly";
+    // Desktop native implementation
+    QJsonArray history = loadHistoryFromFile();
+    QJsonArray newHistory;
+    bool found = false;
+    for (const QJsonValue &val : history) {
+        QJsonObject entry = val.toObject();
+        if (entry["id"].toString() != id) {
+            newHistory.append(entry);
+        } else {
+            found = true;
+        }
+    }
+    if (found) {
+        bool success = saveHistoryToFile(newHistory);
+        emit historyEntryDeleted(success);
+        return;
+    }
 #endif
 
     emit historyEntryDeleted(false);
@@ -465,7 +805,10 @@ void JsonBridge::clearHistory()
         qWarning() << "Failed to clear history";
     }
 #else
-    qDebug() << "History not available outside WebAssembly";
+    // Desktop native implementation
+    bool success = saveHistoryToFile(QJsonArray());
+    emit historyCleared(success);
+    return;
 #endif
 
     emit historyCleared(false);
@@ -484,6 +827,9 @@ bool JsonBridge::isHistoryAvailable()
     } catch (...) {
         qWarning() << "Failed to check history availability";
     }
-#endif
     return false;
+#else
+    // Desktop native implementation - history is always available
+    return true;
+#endif
 }

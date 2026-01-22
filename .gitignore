@@ -8,6 +8,7 @@ debug/
 
 # WASM build outputs
 /dist/
+/dist-docker/
 /pkg/
 *.wasm
 

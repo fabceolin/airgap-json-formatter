@@ -51,6 +51,13 @@ ApplicationWindow {
         onTriggered: validateInput()
     }
 
+    // Timer for auto-expand after model load
+    Timer {
+        id: autoExpandTimer
+        interval: 50
+        onTriggered: jsonTreeView.expandAll()
+    }
+
     function validateInput() {
         if (!inputPane.text || !inputPane.text.trim()) {
             statusBar.isValid = true;
@@ -136,6 +143,8 @@ ApplicationWindow {
                     validateInput();
                     // Auto-save to history
                     JsonBridge.saveToHistory(result.result);
+                    // Auto-expand tree view after model loads
+                    autoExpandTimer.restart();
                 } else {
                     currentFormattedJson = "";
                     outputPane.text = "Error: " + result.error;
@@ -156,6 +165,8 @@ ApplicationWindow {
                     validateInput();
                     // Auto-save to history
                     JsonBridge.saveToHistory(result.result);
+                    // Switch to text mode for minified output
+                    window.viewMode = "text";
                 } else {
                     currentFormattedJson = "";
                     outputPane.text = "Error: " + result.error;
@@ -304,6 +315,8 @@ ApplicationWindow {
                         validateInput();
                         // Auto-save to history
                         JsonBridge.saveToHistory(result.result);
+                        // Auto-expand tree view after model loads
+                        autoExpandTimer.restart();
                     } else {
                         // Invalid JSON - just paste without formatting
                         inputPane.text = text;

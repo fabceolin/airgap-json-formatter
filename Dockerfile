@@ -21,10 +21,13 @@ RUN apt-get update && apt-get install -y \
     wget \
     python3 \
     python3-pip \
+    python3-venv \
+    pipx \
     pkg-config \
     libssl-dev \
     xz-utils \
     p7zip-full \
+    libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Rust
@@ -47,17 +50,21 @@ ENV EMSDK=/opt/emsdk
 ENV PATH="${EMSDK}:${EMSDK}/upstream/emscripten:${PATH}"
 ENV EM_CONFIG=/opt/emsdk/.emscripten
 
-# Download and install Qt for WebAssembly
+# Download and install Qt for WebAssembly using pipx
 WORKDIR /opt
-RUN pip3 install aqtinstall && \
-    aqt install-qt linux desktop ${QT_VERSION} -m qtshadertools && \
-    aqt install-qt linux desktop ${QT_VERSION} wasm_singlethread -m qtshadertools
+RUN pipx install aqtinstall && \
+    /root/.local/bin/aqt install-qt linux desktop ${QT_VERSION} -m qtshadertools && \
+    /root/.local/bin/aqt install-qt all_os wasm ${QT_VERSION} wasm_singlethread -m qtshadertools
 
-# Set Qt environment variables
+# Set Qt environment variables and fix permissions
 ENV QT_ROOT_DIR=/opt/${QT_VERSION}
 ENV QT_HOST_PATH=/opt/${QT_VERSION}/gcc_64
 ENV QT_WASM_PATH=/opt/${QT_VERSION}/wasm_singlethread
 ENV PATH="${QT_HOST_PATH}/bin:${QT_WASM_PATH}/bin:${PATH}"
+
+# Fix permissions for Qt binaries
+RUN chmod +x /opt/${QT_VERSION}/wasm_singlethread/bin/* && \
+    chmod +x /opt/${QT_VERSION}/gcc_64/bin/*
 
 # Create working directory
 WORKDIR /workspace

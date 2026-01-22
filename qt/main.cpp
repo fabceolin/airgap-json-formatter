@@ -19,10 +19,7 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
 
-    // Create and expose Theme and JsonBridge to QML
-    Theme theme;
-    engine.rootContext()->setContextProperty("Theme", &theme);
-
+    // Create and expose JsonBridge to QML (Theme is now a QML singleton)
     JsonBridge jsonBridge;
     engine.rootContext()->setContextProperty("JsonBridge", &jsonBridge);
 

@@ -2,7 +2,8 @@ name: Build and Deploy
 
 on:
   push:
-    branches: [main]
+    tags:
+      - 'v*'  # Trigger only on version tags (v0.1.0, v1.0.0, etc.)
   workflow_dispatch:  # Allow manual trigger
 
 permissions:
@@ -16,9 +17,9 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  # Qt 6.8.0 + Emscripten 3.1.56 is a known-working combination
-  QT_VERSION: '6.8.0'
-  EMSDK_VERSION: '3.1.56'
+  # Qt 6.10.1 + Emscripten 4.0.7 is the supported combination
+  QT_VERSION: '6.10.1'
+  EMSDK_VERSION: '4.0.7'
 
 jobs:
   build:
@@ -27,6 +28,27 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            # Extract version from tag (remove 'v' prefix)
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            # Use VERSION file for manual triggers
+            VERSION=$(cat VERSION | tr -d '[:space:]')
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Building version: $VERSION"
+
+      - name: Update version in source files
+        run: |
+          VERSION="${{ steps.version.outputs.VERSION }}"
+          # Update Theme.qml with the release version
+          sed -i "s/readonly property string appVersion: \".*\"/readonly property string appVersion: \"$VERSION\"/" qt/qml/Theme.qml
+          echo "Updated Theme.qml to version $VERSION"
+          grep appVersion qt/qml/Theme.qml
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

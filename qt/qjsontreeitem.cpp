@@ -93,13 +93,17 @@ QString QJsonTreeItem::jsonPath() const
 
     QString parentPath = m_parent->jsonPath();
 
+    // Skip items with empty key (virtual root level)
+    if (m_key.isEmpty()) {
+        return parentPath;
+    }
+
     if (m_parent->type() == Type::Array) {
         return parentPath + QStringLiteral("[") + m_key + QStringLiteral("]");
     } else {
         // Check if key needs bracket notation (contains special chars)
         bool needsBracket = m_key.contains('.') || m_key.contains(' ') ||
-                           m_key.contains('[') || m_key.contains(']') ||
-                           m_key.isEmpty();
+                           m_key.contains('[') || m_key.contains(']');
         if (needsBracket) {
             return parentPath + QStringLiteral("[\"") + m_key + QStringLiteral("\"]");
         }

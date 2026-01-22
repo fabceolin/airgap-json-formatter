@@ -48,8 +48,8 @@ Rectangle {
             width: airgapRow.width + 16
             height: 26
             radius: 4
-            color: "#1a3a1a"
-            border.color: "#2d5a2d"
+            color: Theme.badgeSuccessBg
+            border.color: Theme.badgeSuccessBorder
             border.width: 1
 
             Row {
@@ -150,6 +150,52 @@ Rectangle {
                 id: offlineBadgeMouseArea
                 anchors.fill: parent
                 hoverEnabled: true
+            }
+        }
+
+        // Theme Toggle Button
+        Rectangle {
+            id: themeToggle
+            width: 32
+            height: 26
+            radius: 4
+            color: themeToggleMouseArea.containsMouse ? Theme.backgroundTertiary : "transparent"
+            border.color: Theme.border
+            border.width: 1
+
+            Text {
+                anchors.centerIn: parent
+                text: "◐"
+                color: Theme.textPrimary
+                font.pixelSize: 16
+            }
+
+            MouseArea {
+                id: themeToggleMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: Theme.toggleTheme()
+            }
+
+            ToolTip {
+                id: themeTooltip
+                visible: themeToggleMouseArea.containsMouse
+                text: Theme.darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"
+                delay: 500
+
+                contentItem: Text {
+                    text: themeTooltip.text
+                    color: Theme.textPrimary
+                    font.pixelSize: 12
+                }
+
+                background: Rectangle {
+                    color: Theme.backgroundTertiary
+                    border.color: Theme.border
+                    border.width: 1
+                    radius: 4
+                }
             }
         }
     }

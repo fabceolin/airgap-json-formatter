@@ -24,67 +24,76 @@ Rectangle {
     RowLayout {
         anchors.fill: parent
         anchors.margins: 8
-        spacing: 12
+        spacing: 8
 
+        // ═══════════════════════════════════════════════════════════════
+        // LEFT ZONE: Input Controls
+        // ═══════════════════════════════════════════════════════════════
+
+        // Load button
         Button {
-            id: formatButton
-            text: "Format"
-            onClicked: toolbar.formatRequested(toolbar.selectedIndent)
+            id: loadButton
+            text: "Load"
+            onClicked: toolbar.loadHistoryRequested()
 
             contentItem: Text {
-                text: formatButton.text
+                text: loadButton.text
                 color: Theme.textPrimary
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 font.pixelSize: 13
             }
             background: Rectangle {
-                implicitWidth: 80
+                implicitWidth: 60
                 implicitHeight: 34
-                color: formatButton.pressed ? Theme.accent : Theme.backgroundSecondary
-                border.color: formatButton.activeFocus ? Theme.focusRing : Theme.border
-                border.width: formatButton.activeFocus ? Theme.focusRingWidth : 1
+                color: loadButton.hovered ? Theme.backgroundSecondary : "transparent"
+                border.color: loadButton.activeFocus ? Theme.focusRing : Theme.border
+                border.width: loadButton.activeFocus ? Theme.focusRingWidth : 1
                 radius: 4
             }
+
+            ToolTip.visible: hovered
+            ToolTip.text: "Load from History (Ctrl+O)"
+            ToolTip.delay: 500
         }
 
+        // Clear button
         Button {
-            id: minifyButton
-            text: "Minify"
-            onClicked: toolbar.minifyRequested()
+            id: clearButton
+            text: "Clear"
+            onClicked: toolbar.clearRequested()
 
             contentItem: Text {
-                text: minifyButton.text
+                text: clearButton.text
                 color: Theme.textPrimary
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
                 font.pixelSize: 13
             }
             background: Rectangle {
-                implicitWidth: 80
+                implicitWidth: 60
                 implicitHeight: 34
-                color: minifyButton.pressed ? Theme.accent : Theme.backgroundSecondary
-                border.color: minifyButton.activeFocus ? Theme.focusRing : Theme.border
-                border.width: minifyButton.activeFocus ? Theme.focusRingWidth : 1
+                color: clearButton.hovered ? Theme.backgroundSecondary : "transparent"
+                border.color: clearButton.activeFocus ? Theme.focusRing : Theme.border
+                border.width: clearButton.activeFocus ? Theme.focusRingWidth : 1
                 radius: 4
             }
+
+            ToolTip.visible: hovered
+            ToolTip.text: "Clear All (Ctrl+Shift+X)"
+            ToolTip.delay: 500
         }
 
-        Rectangle {
-            width: 1
-            height: 30
-            color: Theme.border
-        }
+        // ═══════════════════════════════════════════════════════════════
+        // CENTER ZONE: Processing Actions
+        // ═══════════════════════════════════════════════════════════════
 
-        Label {
-            text: "Indent:"
-            color: Theme.textSecondary
-            font.pixelSize: 13
-        }
+        Item { Layout.fillWidth: true }  // Left spacer
 
+        // Indent selector
         ComboBox {
             id: indentCombo
-            model: ["2 spaces", "4 spaces", "Tabs"]
+            model: ["2 sp", "4 sp", "Tab"]
             currentIndex: 1  // Default: 4 spaces
 
             onCurrentIndexChanged: {
@@ -97,11 +106,11 @@ Rectangle {
                 text: indentCombo.displayText
                 color: Theme.textPrimary
                 verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 13
+                font.pixelSize: 12
             }
 
             background: Rectangle {
-                implicitWidth: 100
+                implicitWidth: 70
                 implicitHeight: 34
                 color: Theme.backgroundSecondary
                 border.color: indentCombo.activeFocus ? Theme.focusRing : Theme.border
@@ -134,7 +143,7 @@ Rectangle {
                 contentItem: Text {
                     text: modelData
                     color: Theme.textPrimary
-                    font.pixelSize: 13
+                    font.pixelSize: 12
                     verticalAlignment: Text.AlignVCenter
                 }
                 background: Rectangle {
@@ -142,18 +151,20 @@ Rectangle {
                 }
                 highlighted: indentCombo.highlightedIndex === index
             }
+
+            ToolTip.visible: hovered
+            ToolTip.text: "Indentation Style"
+            ToolTip.delay: 500
         }
 
-        Item { Layout.fillWidth: true }  // Spacer
-
-        // View mode toggle
+        // Minify button (outline/secondary)
         Button {
-            id: viewToggleButton
-            text: toolbar.viewMode === "tree" ? "Tree" : "Text"
-            onClicked: toolbar.viewModeToggled()
+            id: minifyButton
+            text: "Minify"
+            onClicked: toolbar.minifyRequested()
 
             contentItem: Text {
-                text: viewToggleButton.text
+                text: minifyButton.text
                 color: Theme.textPrimary
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
@@ -162,157 +173,220 @@ Rectangle {
             background: Rectangle {
                 implicitWidth: 70
                 implicitHeight: 34
-                color: viewToggleButton.pressed ? Theme.accent : Theme.backgroundSecondary
-                border.color: viewToggleButton.activeFocus ? Theme.focusRing : Theme.border
-                border.width: viewToggleButton.activeFocus ? Theme.focusRingWidth : 1
+                color: minifyButton.hovered ? Theme.backgroundSecondary : "transparent"
+                border.color: minifyButton.activeFocus ? Theme.focusRing : Theme.border
+                border.width: minifyButton.activeFocus ? Theme.focusRingWidth : 1
                 radius: 4
             }
 
             ToolTip.visible: hovered
-            ToolTip.text: toolbar.viewMode === "tree" ? "Switch to Text View (Ctrl+T)" : "Switch to Tree View (Ctrl+T)"
+            ToolTip.text: "Minify JSON (Ctrl+M)"
             ToolTip.delay: 500
         }
 
-        Rectangle {
-            width: 1
-            height: 30
-            color: Theme.border
-        }
-
-        // Expand All button (only enabled in tree mode)
+        // FORMAT button (PRIMARY CTA)
         Button {
-            id: expandAllButton
-            text: "[+]"
-            enabled: toolbar.viewMode === "tree"
-            opacity: enabled ? 1.0 : 0.5
-            onClicked: toolbar.expandAllRequested()
+            id: formatButton
+            text: "Format"
+            onClicked: toolbar.formatRequested(toolbar.selectedIndent)
 
             contentItem: Text {
-                text: expandAllButton.text
-                color: Theme.textPrimary
+                text: formatButton.text
+                color: "#ffffff"
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 13
-                font.family: Theme.monoFont
+                font.pixelSize: 14
+                font.weight: Font.DemiBold
             }
             background: Rectangle {
-                implicitWidth: 40
-                implicitHeight: 34
-                color: expandAllButton.pressed ? Theme.accent : Theme.backgroundSecondary
-                border.color: expandAllButton.activeFocus ? Theme.focusRing : Theme.border
-                border.width: expandAllButton.activeFocus ? Theme.focusRingWidth : 1
+                implicitWidth: 90
+                implicitHeight: 36
+                color: formatButton.pressed ? Qt.darker(Theme.accent, 1.2) :
+                       formatButton.hovered ? Qt.lighter(Theme.accent, 1.1) : Theme.accent
+                border.color: formatButton.activeFocus ? Theme.focusRing : "transparent"
+                border.width: formatButton.activeFocus ? Theme.focusRingWidth : 0
                 radius: 4
             }
 
             ToolTip.visible: hovered
+            ToolTip.text: "Format JSON (Ctrl+Enter)"
+            ToolTip.delay: 500
+        }
+
+        Item { Layout.fillWidth: true }  // Right spacer
+
+        // ═══════════════════════════════════════════════════════════════
+        // RIGHT ZONE: View & Output Controls
+        // ═══════════════════════════════════════════════════════════════
+
+        // Segmented View Mode Control (Code | Tree)
+        Row {
+            spacing: 0
+
+            Button {
+                id: codeViewBtn
+                width: 50
+                height: 34
+
+                contentItem: Text {
+                    text: "Code"
+                    color: toolbar.viewMode === "text" ? "#ffffff" : Theme.textSecondary
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.pixelSize: 12
+                    font.weight: toolbar.viewMode === "text" ? Font.Medium : Font.Normal
+                }
+                background: Rectangle {
+                    color: toolbar.viewMode === "text" ? Theme.accent : Theme.backgroundSecondary
+                    border.color: Theme.border
+                    border.width: 1
+                    radius: 4
+                    // Round only left corners
+                    Rectangle {
+                        anchors.right: parent.right
+                        width: parent.radius
+                        height: parent.height
+                        color: parent.color
+                    }
+                }
+
+                onClicked: {
+                    if (toolbar.viewMode !== "text") {
+                        toolbar.viewModeToggled()
+                    }
+                }
+
+                ToolTip.visible: hovered
+                ToolTip.text: "Code View (Ctrl+T)"
+                ToolTip.delay: 500
+            }
+
+            Button {
+                id: treeViewBtn
+                width: 50
+                height: 34
+
+                contentItem: Text {
+                    text: "Tree"
+                    color: toolbar.viewMode === "tree" ? "#ffffff" : Theme.textSecondary
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.pixelSize: 12
+                    font.weight: toolbar.viewMode === "tree" ? Font.Medium : Font.Normal
+                }
+                background: Rectangle {
+                    color: toolbar.viewMode === "tree" ? Theme.accent : Theme.backgroundSecondary
+                    border.color: Theme.border
+                    border.width: 1
+                    radius: 4
+                    // Round only right corners
+                    Rectangle {
+                        anchors.left: parent.left
+                        width: parent.radius
+                        height: parent.height
+                        color: parent.color
+                    }
+                }
+
+                onClicked: {
+                    if (toolbar.viewMode !== "tree") {
+                        toolbar.viewModeToggled()
+                    }
+                }
+
+                ToolTip.visible: hovered
+                ToolTip.text: "Tree View (Ctrl+T)"
+                ToolTip.delay: 500
+            }
+        }
+
+        // Expand/Collapse buttons (tree mode only)
+        Button {
+            id: expandAllButton
+            enabled: toolbar.viewMode === "tree"
+            opacity: enabled ? 1.0 : 0.4
+            onClicked: toolbar.expandAllRequested()
+
+            contentItem: Text {
+                text: "⊞"
+                color: Theme.textPrimary
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignVCenter
+                font.pixelSize: 14
+            }
+            background: Rectangle {
+                implicitWidth: 34
+                implicitHeight: 34
+                color: expandAllButton.hovered && expandAllButton.enabled ? Theme.backgroundSecondary : "transparent"
+                border.color: expandAllButton.hovered && expandAllButton.enabled ? Theme.border : "transparent"
+                border.width: 1
+                radius: 4
+            }
+
+            ToolTip.visible: hovered && enabled
             ToolTip.text: "Expand All (Ctrl+E)"
             ToolTip.delay: 500
         }
 
-        // Collapse All button (only enabled in tree mode)
         Button {
             id: collapseAllButton
-            text: "[-]"
             enabled: toolbar.viewMode === "tree"
-            opacity: enabled ? 1.0 : 0.5
+            opacity: enabled ? 1.0 : 0.4
             onClicked: toolbar.collapseAllRequested()
 
             contentItem: Text {
-                text: collapseAllButton.text
+                text: "⊟"
                 color: Theme.textPrimary
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 13
-                font.family: Theme.monoFont
+                font.pixelSize: 14
             }
             background: Rectangle {
-                implicitWidth: 40
+                implicitWidth: 34
                 implicitHeight: 34
-                color: collapseAllButton.pressed ? Theme.accent : Theme.backgroundSecondary
-                border.color: collapseAllButton.activeFocus ? Theme.focusRing : Theme.border
-                border.width: collapseAllButton.activeFocus ? Theme.focusRingWidth : 1
+                color: collapseAllButton.hovered && collapseAllButton.enabled ? Theme.backgroundSecondary : "transparent"
+                border.color: collapseAllButton.hovered && collapseAllButton.enabled ? Theme.border : "transparent"
+                border.width: 1
                 radius: 4
             }
 
-            ToolTip.visible: hovered
+            ToolTip.visible: hovered && enabled
             ToolTip.text: "Collapse All (Ctrl+Shift+E)"
             ToolTip.delay: 500
         }
 
+        // Separator
         Rectangle {
             width: 1
-            height: 30
+            height: 26
             color: Theme.border
         }
 
+        // Copy Output button (icon only)
         Button {
-            id: loadButton
-            text: "Load"
-            onClicked: toolbar.loadHistoryRequested()
+            id: copyButton
+            text: "Copy"
+            onClicked: toolbar.copyRequested()
 
             contentItem: Text {
-                text: loadButton.text
+                text: "⧉"
+                font.pixelSize: 16
                 color: Theme.textPrimary
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 13
             }
             background: Rectangle {
-                implicitWidth: 70
+                implicitWidth: 38
                 implicitHeight: 34
-                color: loadButton.pressed ? Theme.accent : Theme.backgroundSecondary
-                border.color: loadButton.activeFocus ? Theme.focusRing : Theme.border
-                border.width: loadButton.activeFocus ? Theme.focusRingWidth : 1
+                color: copyButton.hovered ? Theme.backgroundSecondary : "transparent"
+                border.color: copyButton.hovered ? Theme.border : "transparent"
+                border.width: 1
                 radius: 4
             }
 
             ToolTip.visible: hovered
-            ToolTip.text: "Load from History (Ctrl+O)"
+            ToolTip.text: "Copy Output (Ctrl+C)"
             ToolTip.delay: 500
-        }
-
-        Button {
-            id: copyButton
-            text: "Copy Output"
-            onClicked: toolbar.copyRequested()
-
-            contentItem: Text {
-                text: copyButton.text
-                color: Theme.textPrimary
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 13
-            }
-            background: Rectangle {
-                implicitWidth: 100
-                implicitHeight: 34
-                color: copyButton.pressed ? Theme.accent : Theme.backgroundSecondary
-                border.color: copyButton.activeFocus ? Theme.focusRing : Theme.border
-                border.width: copyButton.activeFocus ? Theme.focusRingWidth : 1
-                radius: 4
-            }
-        }
-
-        Button {
-            id: clearButton
-            text: "Clear"
-            onClicked: toolbar.clearRequested()
-
-            contentItem: Text {
-                text: clearButton.text
-                color: Theme.textPrimary
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                font.pixelSize: 13
-            }
-            background: Rectangle {
-                implicitWidth: 70
-                implicitHeight: 34
-                color: clearButton.pressed ? Theme.accent : Theme.backgroundSecondary
-                border.color: clearButton.activeFocus ? Theme.focusRing : Theme.border
-                border.width: clearButton.activeFocus ? Theme.focusRingWidth : 1
-                radius: 4
-            }
         }
     }
 }

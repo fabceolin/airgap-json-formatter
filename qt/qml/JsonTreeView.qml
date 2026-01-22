@@ -103,7 +103,7 @@ Rectangle {
                 required property bool isLastChild
                 required property string parentValueType
 
-                property bool hovered: mouseArea.containsMouse || copyIconsArea.containsMouse
+                property bool hovered: mouseArea.containsMouse || copyIconsHover.hovered
                 property int indent: depth * 20
 
                 Rectangle {
@@ -237,39 +237,41 @@ Rectangle {
                     }
 
                 }
-                // Copy icons on hover
-                Row {
-                    id: copyIcons
+                // Copy icons container - positioned at right edge of visible area
+                Rectangle {
+                    id: copyIconsContainer
+                    width: 56
+                    height: 24
                     anchors.right: parent.right
-                    anchors.rightMargin: 12
+                    anchors.rightMargin: 8
                     anchors.verticalCenter: parent.verticalCenter
-                    spacing: 4
+                    color: delegateRoot.hovered ? Theme.backgroundSecondary : "transparent"
+                    radius: 3
                     opacity: delegateRoot.hovered ? 1.0 : 0.0
                     visible: opacity > 0
+
+                    HoverHandler {
+                        id: copyIconsHover
+                    }
 
                     Behavior on opacity {
                         NumberAnimation { duration: 150 }
                     }
 
-                    // MouseArea to keep hover state when over buttons
-                    MouseArea {
-                        id: copyIconsArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        acceptedButtons: Qt.NoButton
-                    }
-
                     // Copy Value button
                     Rectangle {
-                        width: 22
+                        id: copyValueBtn
+                        x: 2
+                        width: 24
                         height: 22
+                        anchors.verticalCenter: parent.verticalCenter
                         radius: 3
                         color: copyValueHover.hovered ? Theme.backgroundTertiary : "transparent"
 
                         Text {
                             anchors.centerIn: parent
-                            text: "[V]"
-                            font.pixelSize: 9
+                            text: "⧉"
+                            font.pixelSize: 12
                             color: Theme.textSecondary
                         }
 
@@ -291,15 +293,19 @@ Rectangle {
 
                     // Copy Path button
                     Rectangle {
-                        width: 22
+                        id: copyPathBtn
+                        x: 28
+                        width: 24
                         height: 22
+                        anchors.verticalCenter: parent.verticalCenter
                         radius: 3
                         color: copyPathHover.hovered ? Theme.backgroundTertiary : "transparent"
 
                         Text {
                             anchors.centerIn: parent
-                            text: "[P]"
-                            font.pixelSize: 9
+                            text: "/$"
+                            font.pixelSize: 11
+                            font.family: Theme.monoFont
                             color: Theme.textSecondary
                         }
 

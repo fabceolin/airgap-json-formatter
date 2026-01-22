@@ -1,0 +1,17 @@
+services:
+  desktop:
+    build:
+      context: .
+      dockerfile: Dockerfile.desktop
+    volumes:
+      - .:/workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - ${HOME}/.Xauthority:/root/.Xauthority:ro
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_QPA_PLATFORM=xcb
+    network_mode: host
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    command: bash
