@@ -4,6 +4,8 @@ pub mod formatter;
 pub mod highlighter;
 pub mod types;
 pub mod validator;
+pub mod xml_formatter;
+pub mod xml_highlighter;
 
 #[cfg(test)]
 mod tests;
@@ -13,6 +15,8 @@ pub use formatter::{format_json, minify_json};
 pub use highlighter::highlight_json;
 pub use types::{FormatError, IndentStyle, JsonStats, ValidationResult};
 pub use validator::validate_json;
+pub use xml_formatter::{format_xml, minify_xml};
+pub use xml_highlighter::highlight_xml;
 
 // ============================================================================
 // WASM/JavaScript API
@@ -135,4 +139,50 @@ pub fn js_validate_json(input: &str) -> String {
 #[wasm_bindgen(js_name = "highlightJson")]
 pub fn js_highlight_json(input: &str) -> String {
     highlighter::highlight_json(input)
+}
+
+// ============================================================================
+// XML WASM Exports (Spike - Q1 Investigation)
+// ============================================================================
+
+/// Format XML with specified indentation.
+///
+/// # Arguments
+/// * `input` - The XML string to format
+/// * `indent` - Indent style: "spaces:2", "spaces:4", or "tabs"
+///
+/// # Returns
+/// * Formatted XML string on success
+/// * Throws error string on failure
+#[wasm_bindgen(js_name = "formatXml")]
+pub fn js_format_xml(input: &str, indent: &str) -> Result<String, JsValue> {
+    let style = parse_indent_style(indent)?;
+    xml_formatter::format_xml(input, style)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Minify XML by removing all unnecessary whitespace.
+///
+/// # Arguments
+/// * `input` - The XML string to minify
+///
+/// # Returns
+/// * Minified XML string on success
+/// * Throws error string on failure
+#[wasm_bindgen(js_name = "minifyXml")]
+pub fn js_minify_xml(input: &str) -> Result<String, JsValue> {
+    xml_formatter::minify_xml(input)
+        .map_err(|e| JsValue::from_str(&e.to_string()))
+}
+
+/// Highlight XML with syntax colors, returning HTML with inline styles.
+///
+/// # Arguments
+/// * `input` - The XML string to highlight
+///
+/// # Returns
+/// * HTML string with inline styles for syntax highlighting
+#[wasm_bindgen(js_name = "highlightXml")]
+pub fn js_highlight_xml(input: &str) -> String {
+    xml_highlighter::highlight_xml(input)
 }
