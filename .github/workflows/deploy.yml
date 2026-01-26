@@ -45,10 +45,26 @@ jobs:
       - name: Update version in source files
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
-          # Update Theme.qml with the release version
+
+          # Update Theme.qml (QML singleton)
           sed -i "s/readonly property string appVersion: \".*\"/readonly property string appVersion: \"$VERSION\"/" qt/qml/Theme.qml
-          echo "Updated Theme.qml to version $VERSION"
+          echo "Updated Theme.qml:"
           grep appVersion qt/qml/Theme.qml
+
+          # Update theme.h (C++ Theme class used by Qt WASM)
+          sed -i "s/return QStringLiteral(\"[0-9]*\.[0-9]*\.[0-9]*\")/return QStringLiteral(\"$VERSION\")/" qt/theme.h
+          echo "Updated theme.h:"
+          grep appVersion qt/theme.h
+
+          # Update main.cpp (Qt application version)
+          sed -i "s/setApplicationVersion(\"[0-9]*\.[0-9]*\.[0-9]*\")/setApplicationVersion(\"$VERSION\")/" qt/main.cpp
+          echo "Updated main.cpp:"
+          grep setApplicationVersion qt/main.cpp
+
+          # Update service worker cache version to force cache refresh
+          sed -i "s/const CACHE_NAME = 'airgap-json-formatter-v[0-9]*'/const CACHE_NAME = 'airgap-json-formatter-v$VERSION'/" public/sw.js
+          echo "Updated sw.js:"
+          grep CACHE_NAME public/sw.js
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable

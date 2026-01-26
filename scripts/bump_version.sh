@@ -8,6 +8,8 @@
 #   - Cargo.toml
 #   - qt/CMakeLists.txt
 #   - qt/qml/Theme.qml
+#   - qt/theme.h
+#   - qt/main.cpp
 #
 # After running, commit the changes and create a git tag:
 #   git add -A && git commit -m "Bump version to X.Y.Z"
@@ -24,6 +26,8 @@ VERSION_FILE="$ROOT_DIR/VERSION"
 CARGO_TOML="$ROOT_DIR/Cargo.toml"
 CMAKE_FILE="$ROOT_DIR/qt/CMakeLists.txt"
 THEME_QML="$ROOT_DIR/qt/qml/Theme.qml"
+THEME_H="$ROOT_DIR/qt/theme.h"
+MAIN_CPP="$ROOT_DIR/qt/main.cpp"
 
 # Read current version
 if [[ ! -f "$VERSION_FILE" ]]; then
@@ -93,6 +97,22 @@ else
     echo "⚠ qt/qml/Theme.qml not found, skipping"
 fi
 
+# Update theme.h (C++ Theme class)
+if [[ -f "$THEME_H" ]]; then
+    sed -i "s/return QStringLiteral(\"[0-9]*\.[0-9]*\.[0-9]*\")/return QStringLiteral(\"$NEW_VERSION\")/" "$THEME_H"
+    echo "✓ Updated qt/theme.h"
+else
+    echo "⚠ qt/theme.h not found, skipping"
+fi
+
+# Update main.cpp (Qt application version)
+if [[ -f "$MAIN_CPP" ]]; then
+    sed -i "s/setApplicationVersion(\"[0-9]*\.[0-9]*\.[0-9]*\")/setApplicationVersion(\"$NEW_VERSION\")/" "$MAIN_CPP"
+    echo "✓ Updated qt/main.cpp"
+else
+    echo "⚠ qt/main.cpp not found, skipping"
+fi
+
 echo ""
 echo "=========================================="
 echo "Version bumped to $NEW_VERSION"
@@ -100,7 +120,7 @@ echo "=========================================="
 echo ""
 echo "Next steps:"
 echo "  1. Review changes: git diff"
-echo "  2. Commit: git add VERSION Cargo.toml qt/CMakeLists.txt qt/qml/Theme.qml"
+echo "  2. Commit: git add VERSION Cargo.toml qt/CMakeLists.txt qt/qml/Theme.qml qt/theme.h qt/main.cpp"
 echo "  3. Commit: git commit -m \"chore: bump version to $NEW_VERSION\""
 echo "  4. Tag: git tag -a v$NEW_VERSION -m \"Release v$NEW_VERSION\""
 echo "  5. Push: git push origin main --tags"
