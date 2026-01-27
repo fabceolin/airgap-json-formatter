@@ -53,14 +53,39 @@ const JsonBridge = {
      * @returns {string} JSON string with {success: boolean, result?: string, error?: string}
      */
     formatJson(input, indentType) {
+        // Always return a valid JSON string, no matter what
+        const makeError = (msg) => JSON.stringify({ success: false, error: String(msg) });
+        const makeSuccess = (res) => JSON.stringify({ success: true, result: String(res) });
+
         if (!isInitialized) {
-            return JSON.stringify({ success: false, error: 'WASM not initialized' });
+            return makeError('WASM not initialized');
         }
+
+        // Defensive: ensure inputs are valid strings
+        let inputStr, indentStr;
         try {
-            const result = wasmModule.formatJson(input, indentType);
-            return JSON.stringify({ success: true, result });
+            inputStr = (input === null || input === undefined) ? '' : String(input);
+            indentStr = (indentType === null || indentType === undefined) ? 'spaces:4' : String(indentType);
         } catch (e) {
-            return JSON.stringify({ success: false, error: String(e) });
+            console.error('[Bridge] formatJson input conversion error:', e);
+            return makeError('Invalid input parameters');
+        }
+
+        // Debug: log input info (truncated for large inputs)
+        console.debug('[Bridge] formatJson called with input length:', inputStr.length,
+                      'indent:', indentStr,
+                      'first 100 chars:', inputStr.substring(0, 100));
+
+        try {
+            const result = wasmModule.formatJson(inputStr, indentStr);
+            if (result === null || result === undefined) {
+                console.error('[Bridge] formatJson returned null/undefined');
+                return makeError('formatJson returned null/undefined');
+            }
+            return makeSuccess(result);
+        } catch (e) {
+            console.error('[Bridge] formatJson error:', e);
+            return makeError(e && e.message ? e.message : String(e));
         }
     },
 
@@ -73,9 +98,11 @@ const JsonBridge = {
         if (!isInitialized) {
             return JSON.stringify({ success: false, error: 'WASM not initialized' });
         }
+        // Ensure input is a string
+        const inputStr = String(input || '');
         try {
-            const result = wasmModule.minifyJson(input);
-            return JSON.stringify({ success: true, result });
+            const result = wasmModule.minifyJson(inputStr);
+            return JSON.stringify({ success: true, result: String(result || '') });
         } catch (e) {
             return JSON.stringify({ success: false, error: String(e) });
         }
@@ -94,9 +121,12 @@ const JsonBridge = {
                 stats: {}
             });
         }
+        // Ensure input is a string
+        const inputStr = String(input || '');
         try {
             // wasmModule.validateJson already returns a JSON string
-            return wasmModule.validateJson(input);
+            const result = wasmModule.validateJson(inputStr);
+            return String(result || '{}');
         } catch (e) {
             return JSON.stringify({
                 isValid: false,
@@ -112,14 +142,17 @@ const JsonBridge = {
      * @returns {string} HTML with syntax highlighting
      */
     highlightJson(input) {
+        // Ensure input is a string
+        const inputStr = String(input || '');
         if (!isInitialized) {
-            return this.escapeHtml(input);
+            return this.escapeHtml(inputStr);
         }
         try {
-            return wasmModule.highlightJson(input);
+            const result = wasmModule.highlightJson(inputStr);
+            return String(result || '');
         } catch (e) {
             console.error('[Bridge] highlightJson error:', e);
-            return this.escapeHtml(input);
+            return this.escapeHtml(inputStr);
         }
     },
 
@@ -158,9 +191,15 @@ const JsonBridge = {
     async readFromClipboard() {
         const CLIPBOARD_TIMEOUT_MS = 5000; // 5 second timeout
 
+        // Early check: Clipboard API availability
+        if (!navigator.clipboard || typeof navigator.clipboard.readText !== 'function') {
+            console.warn('[Bridge] Clipboard API not available');
+            return '';
+        }
+
         try {
             // Pre-check: Verify clipboard-read permission status (fail fast if denied)
-            if (navigator.permissions) {
+            if (navigator.permissions && typeof navigator.permissions.query === 'function') {
                 try {
                     const permissionStatus = await Promise.race([
                         navigator.permissions.query({ name: 'clipboard-read' }),
@@ -169,13 +208,13 @@ const JsonBridge = {
                         )
                     ]);
 
-                    if (permissionStatus.state === 'denied') {
+                    if (permissionStatus && permissionStatus.state === 'denied') {
                         console.warn('[Bridge] Clipboard read permission denied');
                         return '';
                     }
                 } catch (permErr) {
                     // Permission API not supported or timed out - continue with read attempt
-                    console.debug('[Bridge] Permission pre-check skipped:', permErr.message);
+                    console.debug('[Bridge] Permission pre-check skipped:', permErr && permErr.message);
                 }
             }
 
@@ -189,9 +228,9 @@ const JsonBridge = {
 
             return text || '';
         } catch (e) {
-            if (e.message === 'Clipboard read timeout') {
+            if (e && e.message === 'Clipboard read timeout') {
                 console.warn('[Bridge] Clipboard read timed out after', CLIPBOARD_TIMEOUT_MS, 'ms');
-            } else if (e.name === 'NotAllowedError') {
+            } else if (e && e.name === 'NotAllowedError') {
                 console.warn('[Bridge] Clipboard read not allowed (permission denied or no focus)');
             } else {
                 console.error('[Bridge] Clipboard read failed:', e);
@@ -220,11 +259,21 @@ const JsonBridge = {
      * @returns {Promise<string>} JSON result with success/error
      */
     async saveToHistory(json) {
-        if (!window.HistoryStorage) {
-            return JSON.stringify({ success: false, error: 'HistoryStorage not available' });
+        try {
+            if (!window.HistoryStorage) {
+                return JSON.stringify({ success: false, error: 'HistoryStorage not available' });
+            }
+            const jsonStr = String(json || '');
+            const result = await window.HistoryStorage.save(jsonStr);
+            // Ensure we always return a valid JSON string
+            if (result === null || result === undefined) {
+                return JSON.stringify({ success: false, error: 'HistoryStorage.save returned null' });
+            }
+            return JSON.stringify(result);
+        } catch (e) {
+            console.error('[Bridge] saveToHistory error:', e);
+            return JSON.stringify({ success: false, error: String(e && e.message ? e.message : e) });
         }
-        const result = await window.HistoryStorage.save(json);
-        return JSON.stringify(result);
     },
 
     /**
@@ -232,11 +281,19 @@ const JsonBridge = {
      * @returns {Promise<string>} JSON array of entries
      */
     async loadHistory() {
-        if (!window.HistoryStorage) {
-            return JSON.stringify({ success: false, error: 'HistoryStorage not available' });
+        try {
+            if (!window.HistoryStorage) {
+                return JSON.stringify({ success: false, error: 'HistoryStorage not available' });
+            }
+            const result = await window.HistoryStorage.loadAll();
+            if (result === null || result === undefined) {
+                return JSON.stringify({ success: false, error: 'HistoryStorage.loadAll returned null' });
+            }
+            return JSON.stringify(result);
+        } catch (e) {
+            console.error('[Bridge] loadHistory error:', e);
+            return JSON.stringify({ success: false, error: String(e && e.message ? e.message : e) });
         }
-        const result = await window.HistoryStorage.loadAll();
-        return JSON.stringify(result);
     },
 
     /**

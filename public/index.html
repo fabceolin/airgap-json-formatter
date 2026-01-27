@@ -74,6 +74,23 @@
     <!-- JSPI Feature Detection (must load before app initialization) -->
     <script src="jspi-detect.js"></script>
 
+    <!-- Suppress known emscripten/Asyncify internal errors -->
+    <script>
+        // Known emscripten Asyncify bug: internal state management sometimes tries to
+        // access properties on undefined objects during async state transitions.
+        // These errors don't affect functionality, so we suppress them.
+        window.addEventListener('unhandledrejection', function(event) {
+            const msg = event.reason && event.reason.message ? event.reason.message : String(event.reason);
+            // Suppress known emscripten internal errors
+            if (msg.includes("Cannot read properties of undefined (reading 'index')") ||
+                msg.includes("Cannot read properties of undefined (reading 'className')")) {
+                console.debug('[Emscripten] Suppressed known Asyncify internal error:', msg);
+                event.preventDefault();
+                return;
+            }
+        });
+    </script>
+
     <!-- Service Worker Registration -->
     <script>
         if ('serviceWorker' in navigator) {

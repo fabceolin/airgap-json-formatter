@@ -174,12 +174,18 @@ Rectangle {
                         visible: delegateRoot.key !== ""
                         text: {
                             // Array indices don't need quotes
-                            if (delegateRoot.treeView.model && delegateRoot.depth > 0) {
-                                const parentIndex = treeView.index(delegateRoot.row, 0)
-                                const parent = treeView.model.parent(parentIndex)
-                                // Check if parent is array by looking at the key pattern
-                                if (/^\d+$/.test(delegateRoot.key)) {
-                                    return "[" + delegateRoot.key + "]"
+                            if (treeView && treeView.model && delegateRoot.treeView && delegateRoot.treeView.model && delegateRoot.depth > 0) {
+                                try {
+                                    const parentIndex = treeView.index(delegateRoot.row, 0)
+                                    if (parentIndex && parentIndex.valid) {
+                                        const parent = treeView.model.parent(parentIndex)
+                                        // Check if parent is array by looking at the key pattern
+                                        if (/^\d+$/.test(delegateRoot.key)) {
+                                            return "[" + delegateRoot.key + "]"
+                                        }
+                                    }
+                                } catch (e) {
+                                    // Guard against model access during updates
                                 }
                             }
                             return "\"" + delegateRoot.key + "\""
