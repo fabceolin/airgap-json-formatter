@@ -156,11 +156,46 @@ const JsonBridge = {
      * @returns {Promise<string>} The clipboard text or empty string on failure
      */
     async readFromClipboard() {
+        const CLIPBOARD_TIMEOUT_MS = 5000; // 5 second timeout
+
         try {
-            const text = await navigator.clipboard.readText();
+            // Pre-check: Verify clipboard-read permission status (fail fast if denied)
+            if (navigator.permissions) {
+                try {
+                    const permissionStatus = await Promise.race([
+                        navigator.permissions.query({ name: 'clipboard-read' }),
+                        new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('Permission query timeout')), 1000)
+                        )
+                    ]);
+
+                    if (permissionStatus.state === 'denied') {
+                        console.warn('[Bridge] Clipboard read permission denied');
+                        return '';
+                    }
+                } catch (permErr) {
+                    // Permission API not supported or timed out - continue with read attempt
+                    console.debug('[Bridge] Permission pre-check skipped:', permErr.message);
+                }
+            }
+
+            // Attempt clipboard read with timeout
+            const text = await Promise.race([
+                navigator.clipboard.readText(),
+                new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('Clipboard read timeout')), CLIPBOARD_TIMEOUT_MS)
+                )
+            ]);
+
             return text || '';
         } catch (e) {
-            console.error('[Bridge] Clipboard read failed:', e);
+            if (e.message === 'Clipboard read timeout') {
+                console.warn('[Bridge] Clipboard read timed out after', CLIPBOARD_TIMEOUT_MS, 'ms');
+            } else if (e.name === 'NotAllowedError') {
+                console.warn('[Bridge] Clipboard read not allowed (permission denied or no focus)');
+            } else {
+                console.error('[Bridge] Clipboard read failed:', e);
+            }
             return '';
         }
     },
