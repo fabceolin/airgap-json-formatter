@@ -9,8 +9,8 @@
 
 #include <QObject>
 #include <QQueue>
-#include <QFuture>
-#include <QFutureWatcher>
+#include <QtCore/QFuture>
+#include <QtCore/QFutureWatcher>
 #include <QTimer>
 #include <QVariant>
 #include <functional>
