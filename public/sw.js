@@ -3,7 +3,7 @@
  * Enables offline functionality by caching all application assets
  */
 
-const CACHE_NAME = 'airgap-json-formatter-v4';
+const CACHE_NAME = 'airgap-json-formatter-v5';
 
 // Assets to precache for offline use (relative paths for GitHub Pages compatibility)
 const PRECACHE_ASSETS = [
@@ -18,7 +18,11 @@ const PRECACHE_ASSETS = [
     './airgap_formatter.js',
     './airgap_formatter.wasm',
     './icon-192.png',
-    './icon-512.png'
+    './icon-512.png',
+    // Mermaid.js for diagram rendering (Story 10.2)
+    './lib/mermaid.min.js',
+    './lib/purify.min.js',
+    './mermaid-config.js'
 ];
 
 // Install event - precache all assets

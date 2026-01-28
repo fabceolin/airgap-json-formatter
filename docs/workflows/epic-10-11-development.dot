@@ -1,0 +1,108 @@
+// Epic 10 (Markdown + Mermaid) + Story 11.0 (Responsive UI) Workflow
+// Maximum parallelization based on story dependencies
+// Generated: 2026-01-28
+
+digraph epic_10_11_workflow {
+    rankdir=TB;
+    node [shape=box, style="rounded,filled", fillcolor="#e8f4f8"];
+
+    Start [label="Start", shape=ellipse, fillcolor="#90EE90"];
+    End [label="End", shape=ellipse, fillcolor="#FFB6C1"];
+
+    // ========================================
+    // Phase 1: Foundation (All Parallel - No Dependencies)
+    // ========================================
+    subgraph cluster_phase1 {
+        label="1. Foundation (Parallel)";
+        style=filled;
+        fillcolor="#f0f8ff";
+
+        story_10_1 [label="10.1.rust-markdown-renderer"];
+        story_10_2 [label="10.2.mermaid-js-integration"];
+        story_10_7 [label="10.7.theme-extension-markdown"];
+        story_11_0 [label="11.0.responsive-mobile-friendly-ui"];
+    }
+
+    // ========================================
+    // Phase 2: Core Integration
+    // ========================================
+    subgraph cluster_phase2 {
+        label="2. Core Integration";
+        style=filled;
+        fillcolor="#fff8dc";
+
+        story_10_3 [label="10.3.bridge-layer-markdown-methods"];
+        story_10_6 [label="10.6.markdown-syntax-highlighting"];
+    }
+
+    // ========================================
+    // Phase 3: Format Detection
+    // ========================================
+    subgraph cluster_phase3 {
+        label="3. Format Detection";
+        style=filled;
+        fillcolor="#f5f5dc";
+
+        story_10_4 [label="10.4.format-auto-detection-extension"];
+    }
+
+    // ========================================
+    // Phase 4: Preview UI
+    // ========================================
+    subgraph cluster_phase4 {
+        label="4. Preview UI";
+        style=filled;
+        fillcolor="#ffe4e1";
+
+        story_10_5 [label="10.5.markdown-preview-pane"];
+    }
+
+    // ========================================
+    // Phase 5: Integration Testing
+    // ========================================
+    subgraph cluster_phase5 {
+        label="5. Integration Testing";
+        style=filled;
+        fillcolor="#e6e6fa";
+
+        story_10_8 [label="10.8.markdown-integration-testing"];
+    }
+
+    // ========================================
+    // Dependencies / Edges
+    // ========================================
+
+    // Phase 1: All stories start in parallel
+    Start -> story_10_1;
+    Start -> story_10_2;
+    Start -> story_10_7;
+    Start -> story_11_0;
+
+    // 11.0 is independent - goes directly to End
+    story_11_0 -> End;
+
+    // Phase 2: Bridge needs both 10.1 AND 10.2
+    story_10_1 -> story_10_3;
+    story_10_2 -> story_10_3;
+
+    // Phase 2: Syntax highlighting only needs 10.1
+    story_10_1 -> story_10_6;
+
+    // 10.6 is independent path - goes to 10.8
+    story_10_6 -> story_10_8;
+
+    // 10.7 (Theme) is soft dependency - flows to testing
+    story_10_7 -> story_10_8;
+
+    // Phase 3: Detection needs Bridge
+    story_10_3 -> story_10_4;
+
+    // Phase 4: Preview needs Detection
+    story_10_4 -> story_10_5;
+
+    // Phase 5: Testing needs Preview
+    story_10_5 -> story_10_8;
+
+    // Final
+    story_10_8 -> End;
+}

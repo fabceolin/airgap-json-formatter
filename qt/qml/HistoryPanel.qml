@@ -6,7 +6,8 @@ import AirgapFormatter
 Drawer {
     id: historyDrawer
     edge: Qt.RightEdge
-    width: Math.min(400, parent.width * 0.9)
+    // Full screen on mobile, capped at 400px on desktop (Task 8)
+    width: (typeof window !== "undefined" && window.isMobile) ? parent.width : Math.min(400, parent.width * 0.9)
     height: parent.height
 
     modal: true

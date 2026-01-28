@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Share Bridge Tests - Story 9.3</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; background: #1e1e1e; color: #d4d4d4; }
+        .test { margin: 10px 0; padding: 10px; border-radius: 4px; }
+        .pass { background: #1a3a1a; border: 1px solid #2d5a2d; }
+        .fail { background: #4a2d2d; border: 1px solid #5a3d3d; }
+        .pending { background: #3d3a1a; border: 1px solid #5a551a; }
+        h1 { color: #569cd6; }
+        h2 { color: #4ec9b0; margin-top: 30px; }
+        pre { background: #252526; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        .summary { font-size: 1.2em; margin-top: 20px; padding: 15px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Share Bridge Tests - Story 9.3</h1>
+    <p>Testing share URL creation and decoding via bridge.js</p>
+
+    <div id="results"></div>
+    <div id="summary" class="summary pending">Loading WASM module...</div>
+
+    <script type="module">
+        // Test framework
+        let passed = 0;
+        let failed = 0;
+        const results = document.getElementById('results');
+        const summary = document.getElementById('summary');
+
+        function log(name, success, details = '') {
+            const div = document.createElement('div');
+            div.className = `test ${success ? 'pass' : 'fail'}`;
+            div.innerHTML = `<strong>${success ? '✓' : '✗'} ${name}</strong>${details ? `<pre>${details}</pre>` : ''}`;
+            results.appendChild(div);
+            if (success) passed++; else failed++;
+        }
+
+        function updateSummary() {
+            const total = passed + failed;
+            const allPassed = failed === 0;
+            summary.className = `summary ${allPassed ? 'pass' : 'fail'}`;
+            summary.textContent = `Results: ${passed}/${total} passed${allPassed ? ' ✓' : ` (${failed} failed)`}`;
+        }
+
+        // Wait for WASM to load
+        async function runTests() {
+            try {
+                // Import and initialize the bridge
+                const { initBridge, JsonBridge } = await import('../public/bridge.js');
+                await initBridge();
+
+                log('WASM module initialized', JsonBridge.isReady());
+
+                // Test 1: getShareParams with no params
+                const noParams = JSON.parse(JsonBridge.getShareParams());
+                log('getShareParams - no params returns hasShareData: false',
+                    noParams.hasShareData === false,
+                    JSON.stringify(noParams, null, 2));
+
+                // Test 2: createShareUrl - empty input
+                const emptyResult = JSON.parse(JsonBridge.createShareUrl('', ''));
+                log('createShareUrl - empty input returns error',
+                    emptyResult.success === false && emptyResult.error.includes('No JSON'),
+                    JSON.stringify(emptyResult, null, 2));
+
+                // Test 3: createShareUrl - quick share (no passphrase)
+                const quickShareResult = JSON.parse(JsonBridge.createShareUrl('{"test":123}', ''));
+                log('createShareUrl - quick share creates URL with fragment',
+                    quickShareResult.success === true &&
+                    quickShareResult.mode === 'quick' &&
+                    quickShareResult.url.includes('?d=') &&
+                    quickShareResult.url.includes('#'),
+                    JSON.stringify(quickShareResult, null, 2));
+
+                // Test 4: createShareUrl - protected share (with passphrase)
+                const protectedResult = JSON.parse(JsonBridge.createShareUrl('{"secret":"data"}', 'mypassword'));
+                log('createShareUrl - protected share creates URL with p=1',
+                    protectedResult.success === true &&
+                    protectedResult.mode === 'protected' &&
+                    protectedResult.url.includes('?d=') &&
+                    protectedResult.url.includes('&p=1') &&
+                    !protectedResult.url.includes('#'),
+                    JSON.stringify(protectedResult, null, 2));
+
+                // Test 5: decodeShare - quick share round-trip
+                if (quickShareResult.success) {
+                    const url = new URL(quickShareResult.url);
+                    const data = url.searchParams.get('d');
+                    const key = url.hash.slice(1);
+                    const decoded = JSON.parse(JsonBridge.decodeShare(decodeURIComponent(data), key, false));
+                    log('decodeShare - quick share round-trip',
+                        decoded.success === true && decoded.json === '{"test":123}',
+                        JSON.stringify(decoded, null, 2));
+                }
+
+                // Test 6: decodeShare - protected share round-trip
+                if (protectedResult.success) {
+                    const url = new URL(protectedResult.url);
+                    const data = url.searchParams.get('d');
+                    const decoded = JSON.parse(JsonBridge.decodeShare(decodeURIComponent(data), 'mypassword', true));
+                    log('decodeShare - protected share round-trip',
+                        decoded.success === true && decoded.json === '{"secret":"data"}',
+                        JSON.stringify(decoded, null, 2));
+                }
+
+                // Test 7: decodeShare - wrong passphrase
+                if (protectedResult.success) {
+                    const url = new URL(protectedResult.url);
+                    const data = url.searchParams.get('d');
+                    const wrongPass = JSON.parse(JsonBridge.decodeShare(decodeURIComponent(data), 'wrongpassword', true));
+                    log('decodeShare - wrong passphrase returns error',
+                        wrongPass.success === false &&
+                        (wrongPass.errorCode === 'wrong_passphrase' || wrongPass.errorCode === 'decryption_failed'),
+                        JSON.stringify(wrongPass, null, 2));
+                }
+
+                // Test 8: decodeShare - invalid base64
+                const invalidBase64 = JSON.parse(JsonBridge.decodeShare('!!!invalid!!!', 'key', false));
+                log('decodeShare - invalid base64 returns error',
+                    invalidBase64.success === false && invalidBase64.errorCode === 'invalid_base64',
+                    JSON.stringify(invalidBase64, null, 2));
+
+                // Test 9: createShareUrl - large JSON (should fail if over limit)
+                const largeJson = JSON.stringify({ data: 'x'.repeat(100000) });
+                const largeResult = JSON.parse(JsonBridge.createShareUrl(largeJson, ''));
+                log('createShareUrl - large JSON returns too large error',
+                    largeResult.success === false && largeResult.error.includes('too large'),
+                    `JSON size: ${largeJson.length} chars, Result: ${JSON.stringify(largeResult)}`);
+
+                // Test 10: Unicode support
+                const unicodeJson = '{"emoji":"🎉","cjk":"日本語","arabic":"مرحبا"}';
+                const unicodeResult = JSON.parse(JsonBridge.createShareUrl(unicodeJson, ''));
+                if (unicodeResult.success) {
+                    const url = new URL(unicodeResult.url);
+                    const data = url.searchParams.get('d');
+                    const key = url.hash.slice(1);
+                    const decoded = JSON.parse(JsonBridge.decodeShare(decodeURIComponent(data), key, false));
+                    log('Unicode JSON round-trip',
+                        decoded.success === true && decoded.json === unicodeJson,
+                        `Original: ${unicodeJson}\nDecoded: ${decoded.json}`);
+                }
+
+                // Test 11: clearShareParams (just verify it doesn't throw)
+                try {
+                    JsonBridge.clearShareParams();
+                    log('clearShareParams - executes without error', true);
+                } catch (e) {
+                    log('clearShareParams - executes without error', false, e.message);
+                }
+
+                updateSummary();
+            } catch (e) {
+                summary.className = 'summary fail';
+                summary.textContent = `Error: ${e.message}`;
+                console.error(e);
+            }
+        }
+
+        runTests();
+    </script>
+</body>
+</html>

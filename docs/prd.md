@@ -34,6 +34,7 @@ Airgap Multi-Format Formatter addresses this gap by providing a web-accessible t
 |------|---------|-------------|--------|
 | 2025-01-20 | 1.0 | Initial PRD creation | Sarah (PO) |
 | 2026-01-28 | 2.0 | Expanded to multi-format tool (JSON+XML+Markdown+YAML+DOT+Mermaid) | Sarah (PO) |
+| 2026-01-28 | 2.1 | Added mobile support (320px+) per Story 11.0; Updated §3.6 and NFR7 | Sarah (PO) |
 
 ---
 
@@ -90,7 +91,7 @@ Airgap Multi-Format Formatter addresses this gap by providing a web-accessible t
 - **NFR4:** JSON formatting operations shall complete in under 100ms for files up to 1MB
 - **NFR5:** Memory usage shall not exceed 256MB for typical operations (files under 5MB)
 - **NFR6:** Application shall work on modern browsers (Chrome 90+, Firefox 88+, Safari 14+, Edge 90+)
-- **NFR7:** UI shall be responsive and usable on screen widths from 1024px to 4K displays
+- **NFR7:** UI shall be responsive and usable on screen widths from 320px to 4K displays (mobile uses adapted layout with tab-based navigation)
 - **NFR8:** All user data shall remain in browser memory only - no localStorage, IndexedDB, or cookie storage of JSON content
 - **NFR9:** Source code shall be auditable - no obfuscation or minification that prevents security review
 
@@ -136,11 +137,12 @@ The application shall meet WCAG 2.1 AA standards including:
 - **Visual Identity:** Minimal, tool-focused - no mascots or decorative elements
 - **Trust Indicators:** Subtle lock icon and "Airgap Protected" badge visible at all times
 
-### 3.6 Target Device and Platforms: Web Responsive (Desktop-focused)
+### 3.6 Target Device and Platforms: Web Responsive
 
 - Primary target: Desktop browsers (1024px+)
-- Secondary: Tablet landscape mode
-- Not optimized for: Mobile phones (JSON editing on small screens is impractical)
+- Secondary: Tablet landscape mode (768px-1023px)
+- Tertiary: Mobile phones (320px-767px) with adapted UI
+- Note: Mobile UI uses tab-based input/output toggle instead of split-pane; all core functionality preserved
 
 ---
 

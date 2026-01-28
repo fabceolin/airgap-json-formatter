@@ -23,11 +23,57 @@ Rectangle {
     property int totalKeys: 0
     property int maxDepth: 0
 
+    // Story 8.4: Detected format ("json", "xml", "unknown")
+    property string detectedFormat: "json"
+
+    // Story 9.3: Temporary status message (for share feedback, etc.)
+    property string statusMessage: ""
+    property string statusType: ""  // "success", "error", or ""
+
+    // Timer to auto-clear status message
+    Timer {
+        id: statusMessageTimer
+        interval: 5000
+        onTriggered: {
+            statusBar.statusMessage = "";
+            statusBar.statusType = "";
+        }
+    }
+
+    // Function to show a temporary status message
+    function showMessage(message, type) {
+        statusMessage = message;
+        statusType = type || "";
+        statusMessageTimer.restart();
+    }
+
     RowLayout {
         anchors.fill: parent
         anchors.leftMargin: 12
         anchors.rightMargin: 12
         spacing: 16
+
+        // Story 8.4: Format indicator badge
+        Rectangle {
+            width: formatBadgeRow.width + 12
+            height: 22
+            radius: 4
+            color: Theme.backgroundSecondary
+
+            Row {
+                id: formatBadgeRow
+                anchors.centerIn: parent
+                spacing: 4
+
+                Text {
+                    text: statusBar.detectedFormat === "json" ? "JSON" :
+                          statusBar.detectedFormat === "xml" ? "XML" : "?"
+                    color: Theme.textSecondary
+                    font.pixelSize: 11
+                    font.weight: Font.Medium
+                }
+            }
+        }
 
         // Validation Status Badge
         Rectangle {
@@ -48,7 +94,10 @@ Rectangle {
                 }
 
                 Text {
-                    text: statusBar.isValid ? "Valid JSON" : "Invalid JSON"
+                    // Story 8.4: Update validation text based on detected format
+                    text: statusBar.isValid
+                        ? (statusBar.detectedFormat === "xml" ? "Valid XML" : "Valid JSON")
+                        : (statusBar.detectedFormat === "xml" ? "Invalid XML" : "Invalid JSON")
                     color: statusBar.isValid ? Theme.textSuccess : Theme.textError
                     font.pixelSize: 12
                 }
@@ -65,15 +114,25 @@ Rectangle {
             Layout.fillWidth: true
         }
 
-        // Statistics (shown when valid)
+        // Statistics (shown when valid and no status message)
         Text {
-            visible: statusBar.isValid
+            visible: statusBar.isValid && statusBar.statusMessage === ""
             text: "Objects: " + statusBar.objectCount +
                   " | Arrays: " + statusBar.arrayCount +
                   " | Keys: " + statusBar.totalKeys +
                   " | Depth: " + statusBar.maxDepth
             color: Theme.textSecondary
             font.pixelSize: 12
+        }
+
+        // Story 9.3: Temporary status message (for share, load shared, etc.)
+        Text {
+            visible: statusBar.statusMessage !== ""
+            text: statusBar.statusMessage
+            color: statusBar.statusType === "success" ? Theme.textSuccess :
+                   statusBar.statusType === "error" ? Theme.textError : Theme.textSecondary
+            font.pixelSize: 12
+            font.weight: Font.Medium
         }
 
         Item { Layout.fillWidth: true }  // Spacer

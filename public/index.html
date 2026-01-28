@@ -74,6 +74,13 @@
     <!-- JSPI Feature Detection (must load before app initialization) -->
     <script src="jspi-detect.js"></script>
 
+    <!-- DOMPurify for SVG sanitization (defense-in-depth) -->
+    <script defer src="lib/purify.min.js"></script>
+    <!-- Mermaid.js for diagram rendering (bundled, not CDN) -->
+    <script defer src="lib/mermaid.min.js"></script>
+    <!-- Mermaid configuration (secure defaults) -->
+    <script defer src="mermaid-config.js"></script>
+
     <!-- Suppress known emscripten/Asyncify internal errors -->
     <script>
         // Known emscripten Asyncify bug: internal state management sometimes tries to

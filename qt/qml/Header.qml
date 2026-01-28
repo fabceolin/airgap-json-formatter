@@ -5,10 +5,13 @@ import AirgapFormatter
 
 Rectangle {
     id: header
-    height: 40
+    height: window.isMobile ? 48 : 40  // Slightly taller on mobile
     color: Theme.background
 
     property bool offlineReady: false
+
+    // Responsive mode (reference window breakpoints)
+    readonly property bool mobileMode: typeof window !== "undefined" && window.isMobile
 
     // Subtle bottom border
     Rectangle {
@@ -20,20 +23,21 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        spacing: 16
+        anchors.leftMargin: header.mobileMode ? 12 : 16
+        anchors.rightMargin: header.mobileMode ? 12 : 16
+        spacing: header.mobileMode ? 8 : 16
 
-        // App Title
+        // App Title - shortened on mobile
         Text {
-            text: "Airgap JSON Formatter"
+            text: header.mobileMode ? "Airgap" : "Airgap JSON Formatter"
             color: Theme.textPrimary
-            font.pixelSize: 18
+            font.pixelSize: header.mobileMode ? 16 : 18
             font.weight: Font.Medium
         }
 
-        // Version badge
+        // Version badge - hidden on mobile
         Text {
+            visible: !header.mobileMode
             text: "v" + Theme.appVersion
             color: Theme.textSecondary
             font.pixelSize: 11
@@ -42,18 +46,30 @@ Rectangle {
 
         Item { Layout.fillWidth: true }  // Spacer
 
-        // Airgap Protected Badge
+        // Airgap Protected Badge - Always visible (security trust indicator)
+        // Compact version on mobile (icon only), full version on desktop
         Rectangle {
             id: airgapBadge
-            width: airgapRow.width + 16
-            height: 26
+            width: header.mobileMode ? 36 : airgapRow.width + 16
+            height: header.mobileMode ? 36 : 26
             radius: 4
             color: Theme.badgeSuccessBg
             border.color: Theme.badgeSuccessBorder
             border.width: 1
 
+            // Mobile: Icon only (centered)
+            Text {
+                id: airgapIconOnly
+                visible: header.mobileMode
+                anchors.centerIn: parent
+                text: "🔒"
+                font.pixelSize: 16
+            }
+
+            // Desktop: Icon + text
             Row {
                 id: airgapRow
+                visible: !header.mobileMode
                 anchors.centerIn: parent
                 spacing: 6
 
@@ -97,10 +113,10 @@ Rectangle {
             }
         }
 
-        // Offline Ready Indicator
+        // Offline Ready Indicator - hidden on mobile
         Rectangle {
             id: offlineBadge
-            visible: header.offlineReady
+            visible: !header.mobileMode && header.offlineReady
             width: offlineRow.width + 12
             height: 26
             radius: 4
@@ -153,9 +169,10 @@ Rectangle {
             }
         }
 
-        // Theme Toggle Button
+        // Theme Toggle Button - hidden on mobile (moved to overflow menu)
         Rectangle {
             id: themeToggle
+            visible: !header.mobileMode
             width: 32
             height: 26
             radius: 4

@@ -22,6 +22,10 @@ qt_add_executable(airgap_formatter
     qjsontreeitem.h
     qjsontreemodel.cpp
     qjsontreemodel.h
+    qxmltreeitem.cpp
+    qxmltreeitem.h
+    qxmltreemodel.cpp
+    qxmltreemodel.h
     theme.cpp
     theme.h
 )

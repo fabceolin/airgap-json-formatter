@@ -2,6 +2,9 @@ use wasm_bindgen::prelude::*;
 
 pub mod formatter;
 pub mod highlighter;
+pub mod markdown_highlighter;
+pub mod markdown_renderer;
+pub mod share;
 pub mod types;
 pub mod validator;
 pub mod xml_formatter;
@@ -17,6 +20,8 @@ pub use types::{FormatError, IndentStyle, JsonStats, ValidationResult};
 pub use validator::validate_json;
 pub use xml_formatter::{format_xml, minify_xml};
 pub use xml_highlighter::highlight_xml;
+pub use markdown_highlighter::highlight_markdown;
+pub use markdown_renderer::{render_markdown, RenderError};
 
 // ============================================================================
 // WASM/JavaScript API
@@ -185,4 +190,105 @@ pub fn js_minify_xml(input: &str) -> Result<String, JsValue> {
 #[wasm_bindgen(js_name = "highlightXml")]
 pub fn js_highlight_xml(input: &str) -> String {
     xml_highlighter::highlight_xml(input)
+}
+
+// ============================================================================
+// Share WASM Exports
+// ============================================================================
+
+/// Decode a shared payload, returning JSON with result or error.
+#[wasm_bindgen(js_name = "decodeSharePayload")]
+pub fn js_decode_share_payload(data: &str, key_or_passphrase: &str, is_passphrase: bool) -> String {
+    match share::decode_share_payload(data, key_or_passphrase, is_passphrase) {
+        Ok(result) => {
+            format!(
+                r#"{{"success":true,"json":{},"createdAt":{},"mode":"{}"}}"#,
+                serde_json::to_string(&result.json).unwrap_or_else(|_| format!("\"{}\"", result.json)),
+                result.created_at,
+                result.mode
+            )
+        }
+        Err(e) => {
+            let error_code = match &e {
+                share::ShareError::DecryptionFailed if is_passphrase => "wrong_passphrase",
+                other => other.error_code(),
+            };
+            format!(
+                r#"{{"success":false,"error":"{}","errorCode":"{}"}}"#,
+                e, error_code
+            )
+        }
+    }
+}
+
+/// Create a share payload (encoding), returning JSON with result or error.
+#[wasm_bindgen(js_name = "createSharePayload")]
+pub fn js_create_share_payload(json: &str, passphrase: &str) -> String {
+    let pass = if passphrase.is_empty() {
+        None
+    } else {
+        Some(passphrase)
+    };
+    match share::create_share_payload(json, pass) {
+        Ok(payload) => {
+            match payload.key {
+                Some(key) => format!(
+                    r#"{{"success":true,"data":"{}","key":"{}","mode":"quick"}}"#,
+                    payload.data, key
+                ),
+                None => format!(
+                    r#"{{"success":true,"data":"{}","mode":"protected"}}"#,
+                    payload.data
+                ),
+            }
+        }
+        Err(e) => {
+            format!(r#"{{"success":false,"error":"{}"}}"#, e)
+        }
+    }
+}
+
+// ============================================================================
+// Markdown WASM Exports
+// ============================================================================
+
+/// Highlight Markdown with syntax colors, returning HTML with inline styles.
+///
+/// # Arguments
+/// * `input` - The Markdown string to highlight
+///
+/// # Returns
+/// * HTML string with inline styles for syntax highlighting
+#[wasm_bindgen(js_name = "highlightMarkdown")]
+pub fn js_highlight_markdown(input: &str) -> String {
+    markdown_highlighter::highlight_markdown(input)
+}
+
+/// Render Markdown to HTML with GFM extensions.
+///
+/// # Arguments
+/// * `input` - The Markdown string to render
+///
+/// # Returns
+/// * HTML string on success
+/// * Error HTML div with escaped message on failure (AC11)
+///
+/// # Security
+/// - Input size limited to 2MB (AC13)
+/// - Dangerous URI schemes sanitized (AC12)
+/// - Error messages HTML-escaped to prevent XSS
+#[wasm_bindgen(js_name = "renderMarkdown")]
+pub fn js_render_markdown(input: &str) -> String {
+    match markdown_renderer::render_markdown(input) {
+        Ok(html) => html,
+        Err(e) => {
+            // AC11: HTML-escape error message to prevent XSS via error path
+            let escaped = e.message
+                .replace('&', "&amp;")
+                .replace('<', "&lt;")
+                .replace('>', "&gt;")
+                .replace('"', "&quot;");
+            format!("<div class=\"error\">{}</div>", escaped)
+        }
+    }
 }

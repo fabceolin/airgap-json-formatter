@@ -1,0 +1,70 @@
+# Quality Gate: 10.4 - Format Auto-Detection Extension
+schema: 1
+story: "10.4"
+story_title: "Format Auto-Detection Extension"
+gate: PASS
+status_reason: "All 9 ACs implemented with comprehensive test coverage (48 tests). NFR regex validation concern addressed. No blocking issues."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-01-28T23:45:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+# No blocking issues identified
+
+quality_score: 100
+# 100 - (20 * 0 FAILs) - (10 * 0 CONCERNS) = 100
+
+expires: "2026-02-11T23:45:00Z"
+
+risk_summary:
+  totals:
+    critical: 0
+    high: 0
+    medium: 4
+    low: 3
+  highest: medium
+  recommendations:
+    must_fix: []
+    monitor:
+      - "TECH-001: Regex performance on pathological inputs"
+      - "TECH-002: False positive rates in production usage"
+      - "OPS-001: UI state synchronization across entry points"
+
+evidence:
+  tests_reviewed: 48
+  # 30 C++ unit tests in tst_format_detection.cpp
+  # 18 browser E2E tests in format_detection_tests.html
+  risks_identified: 7
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+    ac_gaps: []
+
+nfr_validation:
+  _assessed: [security, performance, reliability, maintainability]
+  security:
+    status: PASS
+    notes: "Read-only pattern matching, no new attack surface, maintains airgap architecture"
+  performance:
+    status: PASS
+    notes: "<1ms target with 2KB search cap, static regex patterns with compilation caching"
+  reliability:
+    status: PASS
+    notes: "isValid() checks implemented on all regex patterns as recommended in NFR assessment"
+  maintainability:
+    status: PASS
+    notes: "Clear structure with isolated isLikelyMarkdown() helper, comprehensive test plan (48 tests)"
+
+recommendations:
+  immediate: []
+  # No immediate fixes required
+  future:
+    - action: "Consider adding emphasis pattern detection (*text*, **text**) for improved coverage"
+      refs: ["qt/jsonbridge.cpp:isLikelyMarkdown()"]
+    - action: "Monitor false positive rates in production; may need 2+ pattern threshold"
+      refs: ["qt/jsonbridge.cpp:1359-1414"]
+
+history:
+  - at: "2026-01-28T23:45:00Z"
+    gate: PASS
+    note: "Initial review - all ACs met, NFR concerns addressed, comprehensive tests"

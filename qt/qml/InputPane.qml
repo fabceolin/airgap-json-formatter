@@ -30,7 +30,8 @@ Rectangle {
             id: textArea
             color: Theme.textPrimary
             font.family: Theme.monoFont
-            font.pixelSize: Theme.monoFontSize
+            // Responsive font size: minimum 14px on mobile (AC: 7)
+            font.pixelSize: Math.max(Theme.monoFontSize, Theme.mobileFontSize)
             placeholderText: "Paste or type JSON here..."
             placeholderTextColor: Theme.textSecondary
             background: Rectangle {

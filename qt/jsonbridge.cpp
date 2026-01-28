@@ -12,6 +12,7 @@
 #include <QDateTime>
 #include <QUuid>
 #include <QPromise>
+#include <QRegularExpression>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/val.h>
@@ -235,6 +236,7 @@ static QString highlightJsonNative(const QString &input) {
 JsonBridge::JsonBridge(QObject *parent)
     : QObject(parent)
     , m_treeModel(new QJsonTreeModel(this))
+    , m_xmlTreeModel(new QXmlTreeModel(this))
 {
     checkReady();
     connectAsyncSerialiserSignals();
@@ -267,9 +269,19 @@ QJsonTreeModel* JsonBridge::treeModel() const
     return m_treeModel;
 }
 
+QXmlTreeModel* JsonBridge::xmlTreeModel() const
+{
+    return m_xmlTreeModel;
+}
+
 bool JsonBridge::loadTreeModel(const QString &json)
 {
     return m_treeModel->loadJson(json);
+}
+
+bool JsonBridge::loadXmlTreeModel(const QString &xml)
+{
+    return m_xmlTreeModel->loadXml(xml);
 }
 
 void JsonBridge::checkReady()
@@ -1010,5 +1022,468 @@ bool JsonBridge::isHistoryAvailable()
 #else
     // Desktop native implementation - history is always available
     return true;
+#endif
+}
+
+void JsonBridge::requestRenderMarkdown(const QString &input)
+{
+    AsyncSerialiser::instance().enqueue("renderMarkdown", [this, input]() {
+        QPromise<QVariant> promise;
+        auto future = promise.future();
+        promise.start();
+
+        QString html;
+        QString error;
+        bool success = false;
+
+#ifdef __EMSCRIPTEN__
+        try {
+            val window = val::global("window");
+            val jsonBridge = window["JsonBridge"];
+
+            if (jsonBridge.isUndefined() || jsonBridge.isNull()) {
+                error = "JsonBridge not available";
+            } else {
+                std::string inputStd = input.toStdString();
+
+                // Call returns JSON string
+                std::string jsonResultStr = jsonBridge.call<std::string>("renderMarkdown", inputStd);
+
+                // Parse the JSON response
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(jsonResultStr).toUtf8());
+                if (doc.isNull() || !doc.isObject()) {
+                    error = "Failed to parse renderMarkdown response";
+                } else {
+                    QJsonObject obj = doc.object();
+                    success = obj["success"].toBool();
+
+                    if (success) {
+                        html = obj["html"].toString();
+                    } else {
+                        error = obj["error"].toString();
+                    }
+                }
+            }
+        } catch (const std::exception &e) {
+            error = QString("Exception: %1").arg(e.what());
+        } catch (...) {
+            error = "Unknown error in renderMarkdown";
+        }
+#else
+        // Desktop: Markdown rendering only available in WASM build
+        error = "Markdown rendering only available in WASM build";
+#endif
+
+        // Emit signal on main thread
+        QMetaObject::invokeMethod(this, [this, success, html, error]() {
+            if (success) {
+                emit markdownRendered(html);
+            } else {
+                emit markdownRenderError(error);
+            }
+        }, Qt::QueuedConnection);
+
+        promise.addResult(QVariant::fromValue(success));
+        promise.finish();
+        return future;
+    });
+}
+
+void JsonBridge::requestRenderMarkdownWithMermaid(const QString &input, const QString &theme)
+{
+    AsyncSerialiser::instance().enqueue("renderMarkdownWithMermaid", [this, input, theme]() {
+        QPromise<QVariant> promise;
+        auto future = promise.future();
+        promise.start();
+
+        QString html;
+        QString error;
+        QStringList warnings;
+        bool success = false;
+
+#ifdef __EMSCRIPTEN__
+        try {
+            val window = val::global("window");
+            val jsonBridge = window["JsonBridge"];
+
+            if (jsonBridge.isUndefined() || jsonBridge.isNull()) {
+                error = "JsonBridge not available";
+            } else {
+                std::string inputStd = input.toStdString();
+                std::string themeStd = theme.toStdString();
+
+                // renderMarkdownWithMermaid is async - use await
+                val jsPromise = jsonBridge.call<val>("renderMarkdownWithMermaid", inputStd, themeStd);
+                val jsResult = jsPromise.await();
+
+                // Parse the JSON string result
+                std::string jsonResultStr = jsResult.as<std::string>();
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(jsonResultStr).toUtf8());
+
+                if (doc.isNull() || !doc.isObject()) {
+                    error = "Failed to parse renderMarkdownWithMermaid response";
+                } else {
+                    QJsonObject obj = doc.object();
+                    success = obj["success"].toBool();
+
+                    if (success) {
+                        html = obj["html"].toString();
+                        // Parse warnings array if present
+                        if (obj.contains("warnings") && obj["warnings"].isArray()) {
+                            QJsonArray warningsArray = obj["warnings"].toArray();
+                            for (const QJsonValue &v : warningsArray) {
+                                warnings.append(v.toString());
+                            }
+                        }
+                    } else {
+                        error = obj["error"].toString();
+                    }
+                }
+            }
+        } catch (const std::exception &e) {
+            error = QString("Exception: %1").arg(e.what());
+        } catch (...) {
+            error = "Unknown error in renderMarkdownWithMermaid";
+        }
+#else
+        // Desktop: Markdown+Mermaid rendering only available in WASM build
+        error = "Markdown+Mermaid rendering only available in WASM build";
+#endif
+
+        // Emit signal on main thread
+        QMetaObject::invokeMethod(this, [this, success, html, error, warnings]() {
+            if (success) {
+                emit markdownWithMermaidRendered(html, warnings);
+            } else {
+                emit markdownWithMermaidError(error);
+            }
+        }, Qt::QueuedConnection);
+
+        promise.addResult(QVariant::fromValue(success));
+        promise.finish();
+        return future;
+    });
+}
+
+void JsonBridge::renderMermaid(const QString &code, const QString &theme)
+{
+    AsyncSerialiser::instance().enqueue("renderMermaid", [this, code, theme]() {
+        QPromise<QVariant> promise;
+        auto future = promise.future();
+        promise.start();
+
+        QVariantMap result;
+        result["success"] = false;
+
+#ifdef __EMSCRIPTEN__
+        try {
+            val window = val::global("window");
+            val renderFn = window["renderMermaid"];
+
+            if (renderFn.isUndefined() || renderFn.isNull()) {
+                result["error"] = "renderMermaid not available";
+            } else {
+                std::string codeStd = code.toStdString();
+                std::string themeStd = theme.toStdString();
+
+                // renderMermaid is async — use jsPromise.await() for Asyncify
+                val jsPromise = renderFn(codeStd, themeStd);
+                val jsResult = jsPromise.await();
+
+                // Parse the JavaScript object result
+                bool success = jsResult["success"].as<bool>();
+                result["success"] = success;
+
+                if (success) {
+                    result["svg"] = QString::fromStdString(jsResult["svg"].as<std::string>());
+                } else {
+                    result["error"] = QString::fromStdString(jsResult["error"].as<std::string>());
+                    if (!jsResult["details"].isUndefined()) {
+                        result["details"] = QString::fromStdString(jsResult["details"].as<std::string>());
+                    }
+                }
+            }
+        } catch (const std::exception& e) {
+            result["error"] = QString("Exception: %1").arg(e.what());
+        } catch (...) {
+            result["error"] = "Unknown error in renderMermaid";
+        }
+#else
+        // Desktop: Mermaid rendering only available in WASM build
+        result["error"] = "Mermaid rendering only available in WASM build";
+#endif
+
+        // Emit signal on main thread
+        QMetaObject::invokeMethod(this, [this, result]() {
+            emit renderMermaidCompleted(result);
+        }, Qt::QueuedConnection);
+
+        promise.addResult(QVariant::fromValue(result));
+        promise.finish();
+        return future;
+    });
+}
+
+// ============================================================================
+// XML Operations (Story 8.3)
+// ============================================================================
+
+void JsonBridge::formatXml(const QString &input, const QString &indentType)
+{
+    AsyncSerialiser::instance().enqueue("formatXml", [this, input, indentType]() {
+        QPromise<QVariant> promise;
+        auto future = promise.future();
+        promise.start();
+
+        QVariantMap result;
+        result["success"] = false;
+
+#ifdef __EMSCRIPTEN__
+        try {
+            val window = val::global("window");
+            val jsonBridge = window["JsonBridge"];
+
+            if (jsonBridge.isUndefined() || jsonBridge.isNull()) {
+                result["error"] = "JsonBridge not available";
+            } else {
+                std::string inputStd = input.toStdString();
+                std::string indentStd = indentType.toStdString();
+
+                // Call returns JSON string to avoid embind property access issues
+                std::string jsonResultStr = jsonBridge.call<std::string>("formatXml", inputStd, indentStd);
+
+                // Parse the JSON response
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(jsonResultStr).toUtf8());
+                if (doc.isNull() || !doc.isObject()) {
+                    result["error"] = "Failed to parse formatXml response";
+                } else {
+                    QJsonObject obj = doc.object();
+                    bool success = obj["success"].toBool();
+                    result["success"] = success;
+
+                    if (success) {
+                        result["result"] = obj["result"].toString();
+                    } else {
+                        result["error"] = obj["error"].toString();
+                    }
+                }
+            }
+        } catch (const std::exception &e) {
+            result["error"] = QString("Exception: %1").arg(e.what());
+        } catch (...) {
+            result["error"] = "Unknown error in formatXml";
+        }
+#else
+        // Desktop: XML formatting not available (requires Rust WASM)
+        Q_UNUSED(indentType);
+        result["error"] = "XML formatting not available in desktop build";
+#endif
+
+        // Emit signal on main thread
+        QMetaObject::invokeMethod(this, [this, result]() {
+            emit formatXmlCompleted(result);
+        }, Qt::QueuedConnection);
+
+        promise.addResult(QVariant::fromValue(result));
+        promise.finish();
+        return future;
+    });
+}
+
+void JsonBridge::minifyXml(const QString &input)
+{
+    AsyncSerialiser::instance().enqueue("minifyXml", [this, input]() {
+        QPromise<QVariant> promise;
+        auto future = promise.future();
+        promise.start();
+
+        QVariantMap result;
+        result["success"] = false;
+
+#ifdef __EMSCRIPTEN__
+        try {
+            val window = val::global("window");
+            val jsonBridge = window["JsonBridge"];
+
+            if (jsonBridge.isUndefined() || jsonBridge.isNull()) {
+                result["error"] = "JsonBridge not available";
+            } else {
+                std::string inputStd = input.toStdString();
+
+                // Call returns JSON string to avoid embind property access issues
+                std::string jsonResultStr = jsonBridge.call<std::string>("minifyXml", inputStd);
+
+                // Parse the JSON response
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(jsonResultStr).toUtf8());
+                if (doc.isNull() || !doc.isObject()) {
+                    result["error"] = "Failed to parse minifyXml response";
+                } else {
+                    QJsonObject obj = doc.object();
+                    bool success = obj["success"].toBool();
+                    result["success"] = success;
+
+                    if (success) {
+                        result["result"] = obj["result"].toString();
+                    } else {
+                        result["error"] = obj["error"].toString();
+                    }
+                }
+            }
+        } catch (const std::exception &e) {
+            result["error"] = QString("Exception: %1").arg(e.what());
+        } catch (...) {
+            result["error"] = "Unknown error in minifyXml";
+        }
+#else
+        // Desktop: XML minification not available (requires Rust WASM)
+        result["error"] = "XML minification not available in desktop build";
+#endif
+
+        // Emit signal on main thread
+        QMetaObject::invokeMethod(this, [this, result]() {
+            emit minifyXmlCompleted(result);
+        }, Qt::QueuedConnection);
+
+        promise.addResult(QVariant::fromValue(result));
+        promise.finish();
+        return future;
+    });
+}
+
+// ============================================================================
+// Format Auto-Detection (Story 8.4 + Story 10.4 Markdown Extension)
+// ============================================================================
+
+// Story 10.4: Helper function to detect likely Markdown content
+// Uses heuristic pattern matching for common Markdown syntax
+static bool isLikelyMarkdown(const QString &input)
+{
+    // Static regex patterns for performance (compiled once)
+    // Heading: # followed by space (ATX heading) - must have space after hash
+    static QRegularExpression headingRe(QStringLiteral("^#{1,6}\\s"));
+    // Code block: triple backticks at line start
+    static QRegularExpression codeBlockRe(QStringLiteral("^```"));
+    // YAML frontmatter: --- at document start
+    static QRegularExpression frontmatterRe(QStringLiteral("^---\\s*$"));
+    // Unordered list: - or * followed by space
+    static QRegularExpression unorderedListRe(QStringLiteral("^[-*]\\s"));
+    // Ordered list: digit(s) followed by . and space
+    static QRegularExpression orderedListRe(QStringLiteral("^\\d+\\.\\s"));
+    // Blockquote: > followed by space
+    static QRegularExpression blockquoteRe(QStringLiteral("^>\\s"));
+
+    // Validate static regex patterns (fail gracefully if malformed)
+    if (!headingRe.isValid() || !codeBlockRe.isValid() || !frontmatterRe.isValid() ||
+        !unorderedListRe.isValid() || !orderedListRe.isValid() || !blockquoteRe.isValid()) {
+        return false;
+    }
+
+    // Check first line for patterns
+    int newlinePos = input.indexOf(QLatin1Char('\n'));
+    QString firstLine = (newlinePos > 0) ? input.left(newlinePos) : input;
+    QString firstLineTrimmed = firstLine.trimmed();
+
+    // First line pattern checks
+    if (headingRe.match(firstLineTrimmed).hasMatch()) return true;
+    if (codeBlockRe.match(firstLineTrimmed).hasMatch()) return true;
+    if (frontmatterRe.match(firstLineTrimmed).hasMatch()) return true;
+    if (unorderedListRe.match(firstLineTrimmed).hasMatch()) return true;
+    if (orderedListRe.match(firstLineTrimmed).hasMatch()) return true;
+    if (blockquoteRe.match(firstLineTrimmed).hasMatch()) return true;
+
+    // Check for patterns mid-document (limit search to first 2KB for performance)
+    QString searchArea = input.left(2000);
+
+    // Multi-line pattern: heading at start of any line
+    static QRegularExpression anyHeadingRe(QStringLiteral("\\n#{1,6}\\s"));
+    // Multi-line pattern: code block at start of any line
+    static QRegularExpression anyCodeBlockRe(QStringLiteral("\\n```"));
+    // Link pattern: [text](url)
+    static QRegularExpression linkRe(QStringLiteral("\\[.+?\\]\\(.+?\\)"));
+
+    // Validate multi-line regex patterns
+    if (!anyHeadingRe.isValid() || !anyCodeBlockRe.isValid() || !linkRe.isValid()) {
+        return false;
+    }
+
+    if (anyHeadingRe.match(searchArea).hasMatch()) return true;
+    if (anyCodeBlockRe.match(searchArea).hasMatch()) return true;
+    if (linkRe.match(searchArea).hasMatch()) return true;
+
+    return false;
+}
+
+QString JsonBridge::detectFormat(const QString &input)
+{
+    QString trimmed = input.trimmed();
+
+    if (trimmed.isEmpty()) {
+        emit formatDetected(QStringLiteral("unknown"));
+        return QStringLiteral("unknown");
+    }
+
+    QChar first = trimmed.at(0);
+
+    // Priority 1: XML (strict syntax - starts with <)
+    if (first == QLatin1Char('<')) {
+        emit formatDetected(QStringLiteral("xml"));
+        return QStringLiteral("xml");
+    }
+
+    // Priority 2: JSON (strict syntax - starts with { or [)
+    if (first == QLatin1Char('{') || first == QLatin1Char('[')) {
+        emit formatDetected(QStringLiteral("json"));
+        return QStringLiteral("json");
+    }
+
+    // Priority 3: Markdown (heuristic patterns) - Story 10.4
+    if (isLikelyMarkdown(trimmed)) {
+        emit formatDetected(QStringLiteral("markdown"));
+        return QStringLiteral("markdown");
+    }
+
+    // Priority 4: Unknown (default fallback)
+    emit formatDetected(QStringLiteral("unknown"));
+    return QStringLiteral("unknown");
+}
+
+QString JsonBridge::highlightXml(const QString &input)
+{
+#ifdef __EMSCRIPTEN__
+    try {
+        val window = val::global("window");
+        val jsonBridge = window["JsonBridge"];
+
+        if (jsonBridge.isUndefined() || jsonBridge.isNull()) {
+            // Return escaped HTML if bridge not available
+            QString escaped = input;
+            escaped.replace("&", "&amp;");
+            escaped.replace("<", "&lt;");
+            escaped.replace(">", "&gt;");
+            return escaped;
+        }
+
+        std::string inputStd = input.toStdString();
+        std::string result = jsonBridge.call<std::string>("highlightXml", inputStd);
+        return QString::fromStdString(result);
+    } catch (const std::exception &e) {
+        qWarning() << "highlightXml error:" << e.what();
+    } catch (...) {
+        qWarning() << "Unknown error in highlightXml";
+    }
+    // Fallback: return escaped HTML
+    QString escaped = input;
+    escaped.replace("&", "&amp;");
+    escaped.replace("<", "&lt;");
+    escaped.replace(">", "&gt;");
+    return escaped;
+#else
+    // Desktop: XML highlighting not available (requires Rust WASM)
+    // Return escaped HTML as fallback
+    QString escaped = input;
+    escaped.replace("&", "&amp;");
+    escaped.replace("<", "&lt;");
+    escaped.replace(">", "&gt;");
+    return "<pre style=\"margin:0; font-family:monospace; white-space:pre-wrap;\">" + escaped + "</pre>";
 #endif
 }

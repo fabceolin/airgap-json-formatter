@@ -20,7 +20,8 @@ Rectangle {
             textFormat: TextEdit.RichText  // Enable HTML rendering
             color: Theme.textPrimary
             font.family: Theme.monoFont
-            font.pixelSize: Theme.monoFontSize
+            // Responsive font size: minimum 14px on mobile (AC: 7)
+            font.pixelSize: Math.max(Theme.monoFontSize, Theme.mobileFontSize)
             placeholderText: "Formatted output will appear here"
             placeholderTextColor: Theme.textSecondary
             readOnly: true

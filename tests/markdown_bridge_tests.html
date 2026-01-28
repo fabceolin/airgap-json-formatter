@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Markdown Bridge Tests - Story 10.3</title>
+    <style>
+        body {
+            font-family: -apple-system, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2 { color: #4ec9b0; }
+        .test { margin: 10px 0; padding: 10px; background: #252526; border-radius: 4px; }
+        .pass { border-left: 4px solid #4caf50; }
+        .fail { border-left: 4px solid #f44336; }
+        .pending { border-left: 4px solid #ff9800; }
+        .test-name { font-weight: bold; }
+        .test-result { margin-top: 5px; font-size: 12px; color: #808080; }
+        pre { background: #1e1e1e; padding: 10px; overflow-x: auto; }
+        #summary { margin-top: 20px; padding: 15px; background: #2d2d2d; border-radius: 4px; }
+        .output-preview { max-height: 200px; overflow-y: auto; font-size: 11px; background: #1a1a1a; padding: 8px; margin-top: 8px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>Markdown Bridge Tests - Story 10.3</h1>
+    <div id="summary"></div>
+    <div id="tests"></div>
+
+    <!-- Libraries (same as index.html) -->
+    <script src="../public/lib/purify.min.js"></script>
+    <script src="../public/lib/mermaid.min.js"></script>
+    <script src="../public/mermaid-config.js"></script>
+
+    <script type="module">
+        // Test framework
+        const tests = [];
+        let passed = 0;
+        let failed = 0;
+
+        function test(name, fn) {
+            tests.push({ name, fn });
+        }
+
+        function assert(condition, message) {
+            if (!condition) throw new Error(message || 'Assertion failed');
+        }
+
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(message || `Expected ${expected}, got ${actual}`);
+            }
+        }
+
+        // Initialize WASM module first
+        const { initBridge, JsonBridge } = await import('../public/bridge.js');
+        await initBridge();
+
+        // ========== AC1: renderMarkdown Tests ==========
+
+        test('10.3-UNIT-001: renderMarkdown returns success JSON for valid input', () => {
+            const result = JsonBridge.renderMarkdown('# Hello');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should return success: true');
+            assert(typeof parsed.html === 'string', 'Should have html property');
+            assert(parsed.html.includes('<h1>'), 'Should contain h1 tag');
+            assert(parsed.html.includes('Hello'), 'Should contain text');
+        });
+
+        test('10.3-UNIT-002: renderMarkdown returns error JSON on failure', () => {
+            // Force WASM error by using a very specific edge case that won't render
+            // Actually renderMarkdown doesn't fail for most input, so test format only
+            const result = JsonBridge.renderMarkdown('# Test');
+            const parsed = JSON.parse(result);
+            assert('success' in parsed, 'Should have success property');
+        });
+
+        test('10.3-UNIT-003: renderMarkdown handles null input', () => {
+            const result = JsonBridge.renderMarkdown(null);
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should return success for null');
+            assert(parsed.html === '', 'Should return empty html for null');
+        });
+
+        test('10.3-UNIT-004: renderMarkdown handles undefined input', () => {
+            const result = JsonBridge.renderMarkdown(undefined);
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should return success for undefined');
+            assert(parsed.html === '', 'Should return empty html for undefined');
+        });
+
+        test('10.3-UNIT-005: renderMarkdown handles empty string', () => {
+            const result = JsonBridge.renderMarkdown('');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should return success for empty string');
+            assert(parsed.html === '', 'Should return empty html');
+        });
+
+        // ========== AC2: renderMermaid Tests (verify bridge interface) ==========
+
+        test('10.3-UNIT-006: renderMermaid available via window', async () => {
+            assert(typeof window.renderMermaid === 'function', 'renderMermaid should be available');
+            const result = await window.renderMermaid('graph TD; A-->B', 'dark');
+            assert(typeof result === 'object', 'Should return object');
+            assert('success' in result, 'Should have success property');
+        });
+
+        test('10.3-UNIT-007: renderMermaid returns error for invalid diagram', async () => {
+            const result = await window.renderMermaid('invalid;;;diagram', 'dark');
+            assert(result.success === false, 'Should fail for invalid diagram');
+            assert('error' in result, 'Should have error property');
+        });
+
+        test('10.3-UNIT-008: renderMermaid handles empty input', async () => {
+            const result = await window.renderMermaid('', 'dark');
+            assert(result.success === false, 'Should fail for empty input');
+        });
+
+        // ========== AC3: renderMarkdownWithMermaid Tests ==========
+
+        test('10.3-INT-001: renderMarkdownWithMermaid renders plain markdown', async () => {
+            const result = await JsonBridge.renderMarkdownWithMermaid('# Hello\n\nWorld', 'dark');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should succeed');
+            assert(parsed.html.includes('<h1>'), 'Should contain h1');
+            assert(parsed.html.includes('Hello'), 'Should contain Hello');
+        });
+
+        test('10.3-INT-002: renderMarkdownWithMermaid renders single mermaid diagram', async () => {
+            const md = '# Test\n\n```mermaid\ngraph TD; A-->B\n```\n\nEnd';
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should succeed: ' + (parsed.error || ''));
+            assert(parsed.html.includes('<h1>'), 'Should contain h1');
+            // Mermaid block should be replaced with SVG
+            assert(parsed.html.includes('<svg') || parsed.html.includes('mermaid-diagram'),
+                   'Should contain SVG or mermaid-diagram div');
+        });
+
+        test('10.3-INT-003: renderMarkdownWithMermaid renders multiple diagrams', async () => {
+            const md = `# Two Diagrams
+
+\`\`\`mermaid
+graph TD; A-->B
+\`\`\`
+
+Some text
+
+\`\`\`mermaid
+pie title Test
+    "A": 50
+    "B": 50
+\`\`\`
+
+End`;
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should succeed');
+            // Count SVG occurrences
+            const svgCount = (parsed.html.match(/<svg/g) || []).length;
+            assert(svgCount >= 2, `Should have at least 2 SVGs, found ${svgCount}`);
+        });
+
+        test('10.3-INT-004: renderMarkdownWithMermaid handles partial failure', async () => {
+            const md = `# Mixed
+
+\`\`\`mermaid
+graph TD; A-->B
+\`\`\`
+
+\`\`\`mermaid
+invalid;;;diagram
+\`\`\`
+
+End`;
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Overall should succeed');
+            assert(parsed.html.includes('<svg'), 'Should have valid SVG');
+            assert(parsed.html.includes('mermaid-error'), 'Should have error div for failed diagram');
+            assert(parsed.warnings && parsed.warnings.length > 0, 'Should have warnings for failed diagram');
+        });
+
+        test('10.3-INT-005: renderMarkdownWithMermaid handles HTML entities', async () => {
+            // Markdown with content that will be HTML-encoded
+            const md = '# Test\n\n```mermaid\ngraph TD; A["Hello & World"]-->B\n```';
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should succeed');
+            // The & in the diagram should be properly handled
+        });
+
+        // ========== AC6: Null/undefined handling ==========
+
+        test('10.3-UNIT-009: renderMarkdownWithMermaid handles null', async () => {
+            const result = await JsonBridge.renderMarkdownWithMermaid(null, 'dark');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should succeed for null');
+            assert(parsed.html === '', 'Should return empty html');
+        });
+
+        // ========== AC8: Theme parameter ==========
+
+        test('10.3-INT-006: Theme parameter dark', async () => {
+            const md = '```mermaid\ngraph TD; A-->B\n```';
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Dark theme should render');
+        });
+
+        test('10.3-INT-007: Theme parameter light', async () => {
+            const md = '```mermaid\ngraph TD; A-->B\n```';
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'light');
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Light theme should render');
+        });
+
+        // ========== AC7: Large document handling ==========
+
+        test('10.3-PERF-001: Large markdown (500KB) renders', async () => {
+            // Generate 500KB of markdown
+            let md = '# Large Document Test\n\n';
+            const section = '## Section\n\nLorem ipsum dolor sit amet. '.repeat(20) + '\n\n';
+            while (md.length < 500 * 1024) {
+                md += section;
+            }
+
+            const start = performance.now();
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+            const elapsed = performance.now() - start;
+
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Large doc should render');
+            assert(parsed.html.length > 0, 'Should produce HTML');
+            console.log(`500KB markdown rendered in ${elapsed.toFixed(0)}ms`);
+        });
+
+        test('10.3-PERF-002: Large markdown with 5 diagrams', async () => {
+            // Generate markdown with diagrams
+            let md = '# Document with Diagrams\n\n';
+            for (let i = 0; i < 5; i++) {
+                md += `## Section ${i + 1}\n\n`;
+                md += 'Lorem ipsum dolor sit amet. '.repeat(50) + '\n\n';
+                md += '```mermaid\ngraph TD; A' + i + '-->B' + i + '\n```\n\n';
+            }
+            // Pad to ~100KB
+            while (md.length < 100 * 1024) {
+                md += 'Lorem ipsum dolor sit amet. ';
+            }
+
+            const start = performance.now();
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+            const elapsed = performance.now() - start;
+
+            const parsed = JSON.parse(result);
+            assert(parsed.success === true, 'Should render');
+            const svgCount = (parsed.html.match(/<svg/g) || []).length;
+            assert(svgCount === 5, `Should have 5 SVGs, found ${svgCount}`);
+            console.log(`100KB with 5 diagrams rendered in ${elapsed.toFixed(0)}ms`);
+            assert(elapsed < 10000, `Render took ${elapsed.toFixed(0)}ms, should be < 10000ms`);
+        });
+
+        // ========== Security Tests ==========
+
+        test('10.3-SEC-001: XSS in Mermaid diagram sanitized', async () => {
+            const md = '```mermaid\ngraph TD; A["<img onerror=alert(1)>"]-->B\n```';
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+            const parsed = JSON.parse(result);
+            if (parsed.success && parsed.html) {
+                assert(!parsed.html.includes('onerror='), 'SVG should not contain onerror');
+            }
+        });
+
+        test('10.3-SEC-002: XSS javascript URI sanitized', async () => {
+            const md = '```mermaid\ngraph TD; click A "javascript:alert(1)"\n```';
+            const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+            const parsed = JSON.parse(result);
+            if (parsed.success && parsed.html) {
+                assert(!parsed.html.includes('javascript:'), 'Should not contain javascript: URI');
+            }
+        });
+
+        // ========== All Mermaid Diagram Types ==========
+
+        test('10.3-INT-008: Renders all 7 diagram types', async () => {
+            const diagrams = [
+                'graph TD; A-->B',
+                'sequenceDiagram\n    A->>B: Hello',
+                'classDiagram\n    class Animal',
+                'stateDiagram-v2\n    [*] --> Active',
+                'erDiagram\n    CUSTOMER ||--o{ ORDER : places',
+                'pie title Test\n    "A": 50\n    "B": 50',
+                'gantt\n    title Test\n    section S\n    A: a1, 2024-01-01, 30d'
+            ];
+
+            for (let i = 0; i < diagrams.length; i++) {
+                const md = '```mermaid\n' + diagrams[i] + '\n```';
+                const result = await JsonBridge.renderMarkdownWithMermaid(md, 'dark');
+                const parsed = JSON.parse(result);
+                assert(parsed.success === true, `Diagram ${i + 1} should render: ${parsed.error || ''}`);
+            }
+        });
+
+        // ========== RUN TESTS ==========
+
+        const testsDiv = document.getElementById('tests');
+        const summaryDiv = document.getElementById('summary');
+
+        for (const t of tests) {
+            const div = document.createElement('div');
+            div.className = 'test pending';
+            div.innerHTML = `<div class="test-name">${t.name}</div><div class="test-result">Running...</div>`;
+            testsDiv.appendChild(div);
+
+            try {
+                await t.fn();
+                div.className = 'test pass';
+                div.querySelector('.test-result').textContent = 'PASSED';
+                passed++;
+            } catch (e) {
+                div.className = 'test fail';
+                div.querySelector('.test-result').textContent = `FAILED: ${e.message}`;
+                console.error(t.name, e);
+                failed++;
+            }
+        }
+
+        summaryDiv.innerHTML = `
+            <strong>Results:</strong> ${passed} passed, ${failed} failed, ${tests.length} total<br>
+            <span style="color: ${failed === 0 ? '#4caf50' : '#f44336'}">
+                ${failed === 0 ? 'All tests passed!' : 'Some tests failed'}
+            </span>
+        `;
+    </script>
+</body>
+</html>

@@ -1,0 +1,88 @@
+# Quality Gate Decision - Story 8.4
+schema: 1
+story: '8.4'
+story_title: 'Format Auto-Detection'
+gate: PASS
+status_reason: 'All 7 acceptance criteria implemented and verified with comprehensive C++ unit tests (27 tests) and browser HTML tests. Implementation is clean, performant, and follows project standards.'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-01-28T12:00:00Z'
+
+waiver: { active: false }
+
+top_issues: []
+
+quality_score: 100
+expires: '2026-02-11T12:00:00Z'
+
+evidence:
+  tests_reviewed: 27
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Client-side string inspection only, no network/storage, follows airgap principle'
+  performance:
+    status: PASS
+    notes: 'O(whitespace) algorithm, <1ms target met, 1MB input completes in <10ms'
+  reliability:
+    status: PASS
+    notes: 'Graceful "unknown" fallback for ambiguous content, no crash vectors'
+  maintainability:
+    status: PASS
+    notes: 'Clean implementation following Qt patterns, comprehensive test coverage'
+
+risk_summary:
+  totals:
+    critical: 0
+    high: 0
+    medium: 0
+    low: 7
+  recommendations:
+    must_fix: []
+    monitor:
+      - 'Edge case: JSON primitives return "unknown" - documented behavior'
+      - 'Debounce consideration for high-frequency typing - low priority'
+
+recommendations:
+  immediate: []
+  future:
+    - action: 'Consider debouncing detection on keystroke (100-300ms) for power users'
+      refs: ['qt/qml/Main.qml:394-401']
+
+# Traceability
+ac_verification:
+  AC1_paste_detection:
+    status: VERIFIED
+    evidence: 'Main.qml:394-401 - detectFormat() called on input text change'
+  AC2_format_button:
+    status: VERIFIED
+    evidence: 'Main.qml:307-334 - Format/Minify handlers call detectFormat() before routing'
+  AC3_detection_logic:
+    status: VERIFIED
+    evidence: 'jsonbridge.cpp:1356-1379 - < for XML, {/[ for JSON, else unknown'
+  AC4_unknown_handling:
+    status: VERIFIED
+    evidence: 'Main.qml:317-318, 331-332 - defaults to JSON for "unknown"'
+  AC5_signal_emission:
+    status: VERIFIED
+    evidence: 'jsonbridge.h:101, jsonbridge.cpp:1361,1368,1373,1377 - signal emitted'
+  AC6_whitespace:
+    status: VERIFIED
+    evidence: 'jsonbridge.cpp:1358 - input.trimmed() before first char check'
+  AC7_performance:
+    status: VERIFIED
+    evidence: 'tst_format_detection.cpp:193-256 - performance tests pass <1ms'
+
+files_reviewed:
+  - qt/jsonbridge.h
+  - qt/jsonbridge.cpp
+  - qt/qml/Main.qml
+  - qt/qml/StatusBar.qml
+  - public/bridge.js
+  - qt/tests/tst_format_detection.cpp
+  - qt/tests/CMakeLists.txt
+  - tests/format_detection_tests.html

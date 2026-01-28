@@ -1,0 +1,122 @@
+// Epics 8 (XML), 9 (Sharing), 10 (Markdown+Mermaid), 11 (Responsive UI)
+// Maximum parallelization based on story dependencies
+// Cross-epic dependency: 10.4 depends on 8.4
+// Generated: 2026-01-28
+
+digraph epics_8_9_10_11 {
+    rankdir=TB;
+    node [shape=box];
+
+    Start [label="Start", shape=ellipse];
+    End [label="End", shape=ellipse];
+
+    // ========================================
+    // Phase 1: Foundation (8 parallel stories)
+    // ========================================
+    subgraph cluster_phase1 {
+        label="1. Foundation (All Parallel)";
+        story_8_1 [label="8.1.productionize-xml-formatter"];
+        story_8_2 [label="8.2.productionize-xml-highlighter"];
+        story_9_1 [label="9.1.rust-share-encoding-module"];
+        story_9_2 [label="9.2.rust-share-decoding-validation"];
+        story_10_1 [label="10.1.rust-markdown-renderer"];
+        story_10_2 [label="10.2.mermaid-js-integration"];
+        story_10_7 [label="10.7.theme-extension-markdown"];
+        story_11_0 [label="11.0.responsive-mobile-friendly-ui"];
+    }
+
+    // ========================================
+    // Phase 2: Bridge & Integration Layers
+    // ========================================
+    subgraph cluster_phase2 {
+        label="2. Bridge & Integration";
+        story_8_3 [label="8.3.bridge-layer-xml-methods"];
+        story_9_3 [label="9.3.share-button-ui-integration"];
+        story_10_3 [label="10.3.bridge-layer-markdown-methods"];
+        story_10_6 [label="10.6.markdown-syntax-highlighting"];
+    }
+
+    // ========================================
+    // Phase 3: Detection & Tree Model
+    // ========================================
+    subgraph cluster_phase3 {
+        label="3. Detection & Tree Model";
+        story_8_4 [label="8.4.format-auto-detection"];
+        story_8_6 [label="8.6.xml-tree-model"];
+    }
+
+    // ========================================
+    // Phase 4: UI Features
+    // ========================================
+    subgraph cluster_phase4 {
+        label="4. UI Features";
+        story_8_5 [label="8.5.toolbar-format-selector"];
+        story_10_4 [label="10.4.format-auto-detection-extension"];
+    }
+
+    // ========================================
+    // Phase 5: Preview
+    // ========================================
+    subgraph cluster_phase5 {
+        label="5. Preview";
+        story_10_5 [label="10.5.markdown-preview-pane"];
+    }
+
+    // ========================================
+    // Phase 6: Integration Testing
+    // ========================================
+    subgraph cluster_phase6 {
+        label="6. Integration Testing";
+        story_8_7 [label="8.7.integration-testing"];
+        story_10_8 [label="10.8.markdown-integration-testing"];
+    }
+
+    // ========================================
+    // Edges
+    // ========================================
+
+    // Phase 1: All start in parallel
+    Start -> story_8_1;
+    Start -> story_8_2;
+    Start -> story_9_1;
+    Start -> story_9_2;
+    Start -> story_10_1;
+    Start -> story_10_2;
+    Start -> story_10_7;
+    Start -> story_11_0;
+
+    // Independent stories go straight to End
+    story_11_0 -> End;
+
+    // Epic 8 chain
+    story_8_1 -> story_8_3;
+    story_8_2 -> story_8_3;
+    story_8_3 -> story_8_4;
+    story_8_3 -> story_8_6;
+    story_8_4 -> story_8_5;
+    story_8_5 -> story_8_7;
+    story_8_6 -> story_8_7;
+
+    // Epic 9 chain
+    story_9_1 -> story_9_3;
+    story_9_2 -> story_9_3;
+    story_9_3 -> End;
+
+    // Epic 10 chain
+    story_10_1 -> story_10_3;
+    story_10_2 -> story_10_3;
+    story_10_1 -> story_10_6;
+    story_10_7 -> story_10_6;
+    story_10_3 -> story_10_4;
+    story_10_4 -> story_10_5;
+    story_10_5 -> story_10_8;
+    story_10_6 -> story_10_8;
+    story_10_7 -> story_10_8;
+
+    // Cross-epic: 10.4 extends 8.4's format detection
+    story_8_4 -> story_10_4;
+
+    // Final
+    story_8_7 -> End;
+    story_10_8 -> End;
+}

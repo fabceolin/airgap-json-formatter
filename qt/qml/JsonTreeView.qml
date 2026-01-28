@@ -141,21 +141,25 @@ Rectangle {
                     spacing: 4
                     height: 22
 
-                    // Expand/Collapse indicator
+                    // Expand/Collapse indicator (touch-friendly)
                     Item {
-                        width: 16
-                        height: parent.height
+                        width: 24  // Increased for touch
+                        height: Math.max(parent.height, 32)  // Minimum 32px for touch
                         visible: delegateRoot.isExpandable
 
                         Text {
                             anchors.centerIn: parent
                             text: delegateRoot.expanded ? "\u25BC" : "\u25B6"
                             color: Theme.syntaxPunctuation
-                            font.pixelSize: 8
+                            font.pixelSize: 10
                         }
 
+                        // Touch-friendly hit area (extends beyond visual)
                         MouseArea {
-                            anchors.fill: parent
+                            // Extend hit area for easier touch targeting
+                            anchors.centerIn: parent
+                            width: Theme.touchTargetSize
+                            height: Theme.touchTargetSize
                             cursorShape: Qt.PointingHandCursor
                             onClicked: treeView.toggleExpanded(delegateRoot.row)
                         }

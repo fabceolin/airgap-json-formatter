@@ -340,8 +340,516 @@ const JsonBridge = {
      */
     isHistoryAvailable() {
         return window.HistoryStorage && window.HistoryStorage.isAvailable();
+    },
+
+    // ========== Markdown Rendering Methods (Story 10.3) ==========
+
+    /**
+     * Render Markdown to HTML
+     * @param {string} input - Markdown string to render
+     * @returns {string} JSON string with {success: boolean, html?: string, error?: string}
+     */
+    renderMarkdown(input) {
+        const makeError = (msg) => JSON.stringify({ success: false, error: String(msg) });
+        const makeSuccess = (html) => JSON.stringify({ success: true, html: String(html) });
+
+        if (!isInitialized) {
+            return makeError('WASM not initialized');
+        }
+
+        // Handle null/undefined/empty input gracefully (AC6)
+        let inputStr;
+        try {
+            inputStr = (input === null || input === undefined) ? '' : String(input);
+        } catch (e) {
+            return makeError('Invalid input');
+        }
+
+        if (inputStr.trim() === '') {
+            return makeSuccess('');
+        }
+
+        try {
+            const html = wasmModule.renderMarkdown(inputStr);
+            return makeSuccess(html);
+        } catch (e) {
+            console.error('[Bridge] renderMarkdown error:', e);
+            return makeError(e.message || String(e));
+        }
+    },
+
+    /**
+     * Decode HTML entities in a string
+     * @param {string} text - Text with HTML entities
+     * @returns {string} Decoded text
+     */
+    decodeHtmlEntities(text) {
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = text;
+        return textarea.value;
+    },
+
+    /**
+     * Render Markdown with Mermaid diagrams to HTML
+     * @param {string} input - Markdown string (may contain mermaid code blocks)
+     * @param {string} theme - 'dark' or 'light'
+     * @returns {Promise<string>} JSON string with {success: boolean, html?: string, warnings?: string[], error?: string}
+     */
+    async renderMarkdownWithMermaid(input, theme = 'dark') {
+        const makeError = (msg) => JSON.stringify({ success: false, error: String(msg) });
+
+        // Step 1: Render Markdown to HTML
+        const mdResultStr = this.renderMarkdown(input);
+        let mdResult;
+        try {
+            mdResult = JSON.parse(mdResultStr);
+        } catch (e) {
+            return makeError('Failed to parse Markdown result');
+        }
+
+        if (!mdResult.success) {
+            return JSON.stringify(mdResult);
+        }
+
+        let html = mdResult.html;
+
+        // Step 2: Find Mermaid code blocks
+        // Match <pre><code class="language-mermaid">...</code></pre> blocks
+        const mermaidRegex = /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g;
+        const matches = [...html.matchAll(mermaidRegex)];
+
+        if (matches.length === 0) {
+            return JSON.stringify({ success: true, html: html });
+        }
+
+        // Step 3: Render each Mermaid block
+        const errors = [];
+        for (const match of matches) {
+            const fullMatch = match[0];
+            const code = this.decodeHtmlEntities(match[1]);
+
+            try {
+                const result = await window.renderMermaid(code, theme);
+                if (result.success) {
+                    html = html.replace(fullMatch, `<div class="mermaid-diagram">${result.svg}</div>`);
+                } else {
+                    const escapedError = (result.error || 'Unknown error')
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;');
+                    const errorHtml = `<div class="mermaid-error"><strong>Diagram Error:</strong> ${escapedError}</div>`;
+                    html = html.replace(fullMatch, errorHtml);
+                    errors.push(result.error);
+                }
+            } catch (e) {
+                const escapedError = (e.message || String(e))
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+                const errorHtml = `<div class="mermaid-error"><strong>Diagram Error:</strong> ${escapedError}</div>`;
+                html = html.replace(fullMatch, errorHtml);
+                errors.push(e.message || String(e));
+            }
+        }
+
+        return JSON.stringify({
+            success: true,
+            html: html,
+            warnings: errors.length > 0 ? errors : undefined
+        });
+    },
+
+    // ========== XML Formatting Methods (Story 8.3) ==========
+
+    /**
+     * Format XML with specified indentation
+     * @param {string} input - XML string to format
+     * @param {string} indentType - "spaces:2", "spaces:4", or "tabs"
+     * @returns {string} JSON string with {success: boolean, result?: string, error?: string}
+     */
+    formatXml(input, indentType) {
+        const makeError = (msg) => JSON.stringify({ success: false, error: String(msg) });
+        const makeSuccess = (res) => JSON.stringify({ success: true, result: String(res) });
+
+        if (!isInitialized) {
+            return makeError('WASM not initialized');
+        }
+
+        // Defensive: ensure inputs are valid strings
+        let inputStr, indentStr;
+        try {
+            inputStr = (input === null || input === undefined) ? '' : String(input);
+            indentStr = (indentType === null || indentType === undefined) ? 'spaces:4' : String(indentType);
+        } catch (e) {
+            console.error('[Bridge] formatXml input conversion error:', e);
+            return makeError('Invalid input parameters');
+        }
+
+        try {
+            const result = wasmModule.formatXml(inputStr, indentStr);
+            if (result === null || result === undefined) {
+                console.error('[Bridge] formatXml returned null/undefined');
+                return makeError('formatXml returned null/undefined');
+            }
+            return makeSuccess(result);
+        } catch (e) {
+            console.error('[Bridge] formatXml error:', e);
+            return makeError(e && e.message ? e.message : String(e));
+        }
+    },
+
+    /**
+     * Minify XML by removing whitespace
+     * @param {string} input - XML string to minify
+     * @returns {string} JSON string with {success: boolean, result?: string, error?: string}
+     */
+    minifyXml(input) {
+        const makeError = (msg) => JSON.stringify({ success: false, error: String(msg) });
+        const makeSuccess = (res) => JSON.stringify({ success: true, result: String(res) });
+
+        if (!isInitialized) {
+            return makeError('WASM not initialized');
+        }
+
+        // Ensure input is a string
+        const inputStr = String(input || '');
+        try {
+            const result = wasmModule.minifyXml(inputStr);
+            if (result === null || result === undefined) {
+                console.error('[Bridge] minifyXml returned null/undefined');
+                return makeError('minifyXml returned null/undefined');
+            }
+            return makeSuccess(result);
+        } catch (e) {
+            console.error('[Bridge] minifyXml error:', e);
+            return makeError(e && e.message ? e.message : String(e));
+        }
+    },
+
+    /**
+     * Highlight XML with syntax colors
+     * @param {string} input - XML string to highlight
+     * @returns {string} HTML with syntax highlighting
+     */
+    highlightXml(input) {
+        // Ensure input is a string
+        const inputStr = String(input || '');
+        if (!isInitialized) {
+            return this.escapeHtml(inputStr);
+        }
+        try {
+            const result = wasmModule.highlightXml(inputStr);
+            return String(result || '');
+        } catch (e) {
+            console.error('[Bridge] highlightXml error:', e);
+            return this.escapeHtml(inputStr);
+        }
+    },
+
+    // ========== Format Auto-Detection (Story 8.4) ==========
+
+    /**
+     * Detect format of input content (JSON, XML, or unknown)
+     * Detection logic: '<' prefix = XML, '{' or '[' prefix = JSON
+     * Handles leading whitespace, returns 'unknown' for ambiguous content
+     * @param {string} input - Content to detect format of
+     * @returns {string} "json", "xml", or "unknown"
+     */
+    detectFormat(input) {
+        // Ensure input is a string
+        const inputStr = String(input || '');
+
+        // Trim whitespace to find first meaningful character
+        const trimmed = inputStr.trim();
+
+        if (trimmed.length === 0) {
+            return 'unknown';
+        }
+
+        const firstChar = trimmed.charAt(0);
+
+        if (firstChar === '<') {
+            return 'xml';
+        }
+
+        if (firstChar === '{' || firstChar === '[') {
+            return 'json';
+        }
+
+        return 'unknown';
+    },
+
+    // ========== Share Methods (Story 9.3) ==========
+
+    /**
+     * Create a share URL from JSON content
+     * @param {string} json - JSON string to share
+     * @param {string} passphrase - Optional passphrase for protected share
+     * @returns {string} JSON string with {success, url, mode} or {success: false, error}
+     */
+    createShareUrl(json, passphrase) {
+        if (!isInitialized) {
+            return JSON.stringify({ success: false, error: 'WASM not initialized' });
+        }
+
+        try {
+            const jsonStr = String(json || '');
+            if (!jsonStr.trim()) {
+                return JSON.stringify({ success: false, error: 'No JSON to share' });
+            }
+
+            const passphraseStr = String(passphrase || '');
+            const result = JSON.parse(wasmModule.createSharePayload(jsonStr, passphraseStr));
+
+            if (!result.success) {
+                return JSON.stringify({ success: false, error: result.error });
+            }
+
+            const baseUrl = `${window.location.origin}${window.location.pathname}`;
+            let shareUrl;
+
+            if (result.mode === 'quick') {
+                // Quick share: key in fragment (not sent to server)
+                shareUrl = `${baseUrl}?d=${encodeURIComponent(result.data)}#${result.key}`;
+            } else {
+                // Protected: no key in URL, p=1 flag indicates passphrase mode
+                shareUrl = `${baseUrl}?d=${encodeURIComponent(result.data)}&p=1`;
+            }
+
+            // Check URL length (browsers have limits, ~8000 is safe)
+            if (shareUrl.length > 8000) {
+                return JSON.stringify({
+                    success: false,
+                    error: 'JSON too large to share (max ~50KB)'
+                });
+            }
+
+            return JSON.stringify({ success: true, url: shareUrl, mode: result.mode });
+        } catch (e) {
+            console.error('[Bridge] createShareUrl error:', e);
+            return JSON.stringify({ success: false, error: String(e) });
+        }
+    },
+
+    /**
+     * Get share parameters from current URL
+     * @returns {string} JSON string with {hasShareData, data?, key?, isProtected?}
+     */
+    getShareParams() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            const data = params.get('d');
+            const isProtected = params.get('p') === '1';
+            const key = window.location.hash.slice(1); // Remove leading #
+
+            if (!data) {
+                return JSON.stringify({ hasShareData: false });
+            }
+
+            return JSON.stringify({
+                hasShareData: true,
+                data: decodeURIComponent(data),
+                key: isProtected ? null : key,
+                isProtected: isProtected
+            });
+        } catch (e) {
+            console.error('[Bridge] getShareParams error:', e);
+            return JSON.stringify({ hasShareData: false });
+        }
+    },
+
+    /**
+     * Decode a shared payload
+     * @param {string} data - Base64URL encoded payload
+     * @param {string} keyOrPassphrase - Decryption key or passphrase
+     * @param {boolean} isPassphrase - True if keyOrPassphrase is a passphrase
+     * @returns {string} JSON string with decode result
+     */
+    decodeShare(data, keyOrPassphrase, isPassphrase) {
+        if (!isInitialized) {
+            return JSON.stringify({ success: false, error: 'WASM not initialized', errorCode: 'not_initialized' });
+        }
+
+        try {
+            const result = wasmModule.decodeSharePayload(data, keyOrPassphrase, isPassphrase);
+            return result; // Already JSON string from WASM
+        } catch (e) {
+            console.error('[Bridge] decodeShare error:', e);
+            return JSON.stringify({ success: false, error: String(e), errorCode: 'unknown' });
+        }
+    },
+
+    /**
+     * Clear share parameters from URL (preserves history)
+     */
+    clearShareParams() {
+        try {
+            const url = new URL(window.location.href);
+            url.search = '';
+            url.hash = '';
+            window.history.replaceState({}, '', url.pathname);
+        } catch (e) {
+            console.error('[Bridge] clearShareParams error:', e);
+        }
+    },
+
+    // ========== Markdown Syntax Highlighting (Story 10.6) ==========
+
+    /**
+     * Highlight Markdown with syntax colors
+     * @param {string} input - Markdown string to highlight
+     * @returns {string} HTML with syntax highlighting
+     */
+    highlightMarkdown(input) {
+        // Ensure input is a string
+        const inputStr = String(input || '');
+        if (!isInitialized) {
+            return this.escapeHtml(inputStr);
+        }
+        try {
+            const result = wasmModule.highlightMarkdown(inputStr);
+            return String(result || '');
+        } catch (e) {
+            console.error('[Bridge] highlightMarkdown error:', e);
+            return this.escapeHtml(inputStr);
+        }
     }
 };
+
+// ========== Mermaid Rendering ==========
+
+let mermaidIdCounter = 0;
+let currentMermaidTheme = 'dark';
+
+/**
+ * Get Mermaid theme configuration based on dark/light mode
+ * @param {boolean} isDark - Whether dark mode is enabled
+ * @returns {Object} Mermaid theme configuration
+ */
+function getMermaidThemeConfig(isDark) {
+    if (isDark) {
+        return {
+            theme: 'dark',
+            themeVariables: {
+                primaryColor: '#0078d4',
+                primaryTextColor: '#d4d4d4',
+                primaryBorderColor: '#3c3c3c',
+                lineColor: '#808080',
+                secondaryColor: '#252526',
+                tertiaryColor: '#2d2d2d',
+                background: '#1e1e1e',
+                mainBkg: '#252526',
+                nodeBorder: '#3c3c3c',
+                clusterBkg: '#2d2d2d',
+                titleColor: '#d4d4d4',
+                edgeLabelBackground: '#252526'
+            }
+        };
+    } else {
+        return {
+            theme: 'default',
+            themeVariables: {
+                primaryColor: '#0066cc',
+                primaryTextColor: '#1e1e1e',
+                primaryBorderColor: '#cccccc',
+                lineColor: '#666666',
+                secondaryColor: '#f5f5f5',
+                tertiaryColor: '#e8e8e8',
+                background: '#ffffff',
+                mainBkg: '#f5f5f5',
+                nodeBorder: '#cccccc',
+                clusterBkg: '#e8e8e8',
+                titleColor: '#1e1e1e',
+                edgeLabelBackground: '#f5f5f5'
+            }
+        };
+    }
+}
+
+/**
+ * Set the Mermaid theme (called once at startup and on theme change)
+ * @param {string} theme - 'dark' or 'light'
+ */
+function setMermaidTheme(theme) {
+    if (typeof mermaid === 'undefined') {
+        console.warn('[Mermaid] Library not loaded, cannot set theme');
+        return;
+    }
+
+    const newTheme = theme === 'dark' ? 'dark' : 'default';
+    if (newTheme !== currentMermaidTheme) {
+        currentMermaidTheme = newTheme;
+        const config = getMermaidThemeConfig(theme === 'dark');
+        mermaid.initialize({
+            ...config,
+            startOnLoad: false,
+            securityLevel: 'strict',
+            logLevel: 'error',
+            fontFamily: 'Consolas, Monaco, "Courier New", monospace',
+            flowchart: { useMaxWidth: true, htmlLabels: false }
+        });
+        console.log('[Mermaid] Theme updated to:', theme);
+    }
+}
+
+/**
+ * Render a Mermaid diagram to SVG
+ * @param {string} code - Mermaid diagram code
+ * @param {string} theme - 'dark' or 'light'
+ * @returns {Promise<Object>} Result with { success: boolean, svg?: string, error?: string, details?: string }
+ */
+async function renderMermaid(code, theme = 'dark') {
+    // Check library availability
+    if (typeof mermaid === 'undefined') {
+        return { success: false, error: 'Mermaid library not loaded' };
+    }
+    if (typeof DOMPurify === 'undefined') {
+        return { success: false, error: 'DOMPurify library not loaded' };
+    }
+
+    // Validate input
+    if (!code || typeof code !== 'string' || code.trim() === '') {
+        return { success: false, error: 'Empty or invalid diagram code' };
+    }
+
+    const id = `mermaid-${++mermaidIdCounter}`;
+
+    // Update theme only if changed (initialize once, not per-render)
+    setMermaidTheme(theme);
+
+    try {
+        // Race render against 5-second timeout (AC11)
+        const renderPromise = mermaid.render(id, code);
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Render timeout (5s exceeded)')), 5000)
+        );
+
+        const { svg } = await Promise.race([renderPromise, timeoutPromise]);
+
+        // Defense-in-depth: sanitize SVG output before returning (AC10)
+        const cleanSvg = DOMPurify.sanitize(svg, {
+            USE_PROFILES: { svg: true, svgFilters: true },
+            ADD_TAGS: ['use']
+        });
+
+        return { success: true, svg: cleanSvg };
+    } catch (e) {
+        // Clean up orphaned render container on failure
+        const orphan = document.getElementById('d' + id);
+        if (orphan) orphan.remove();
+
+        return {
+            success: false,
+            error: e.message || 'Failed to render diagram',
+            details: e.toString()
+        };
+    }
+}
+
+// Export mermaid functions to window for Qt access (called FROM C++ JsonBridge via AsyncSerialiser)
+window.renderMermaid = renderMermaid;
+window.setMermaidTheme = setMermaidTheme;
+window.getMermaidThemeConfig = getMermaidThemeConfig;
 
 // Export to global scope for Qt access
 window.JsonBridge = JsonBridge;

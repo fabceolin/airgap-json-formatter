@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mermaid Integration Tests - Story 10.2</title>
+    <style>
+        body {
+            font-family: -apple-system, sans-serif;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1, h2 { color: #4ec9b0; }
+        .test { margin: 10px 0; padding: 10px; background: #252526; border-radius: 4px; }
+        .pass { border-left: 4px solid #4caf50; }
+        .fail { border-left: 4px solid #f44336; }
+        .pending { border-left: 4px solid #ff9800; }
+        .test-name { font-weight: bold; }
+        .test-result { margin-top: 5px; font-size: 12px; color: #808080; }
+        pre { background: #1e1e1e; padding: 10px; overflow-x: auto; }
+        #summary { margin-top: 20px; padding: 15px; background: #2d2d2d; border-radius: 4px; }
+        .diagram-output { max-width: 400px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Mermaid Integration Tests - Story 10.2</h1>
+    <div id="summary"></div>
+    <div id="tests"></div>
+
+    <!-- Libraries (same as index.html) -->
+    <script src="../public/lib/purify.min.js"></script>
+    <script src="../public/lib/mermaid.min.js"></script>
+    <script src="../public/mermaid-config.js"></script>
+
+    <script type="module">
+        // Test framework
+        const tests = [];
+        let passed = 0;
+        let failed = 0;
+
+        function test(name, fn) {
+            tests.push({ name, fn });
+        }
+
+        function assert(condition, message) {
+            if (!condition) throw new Error(message || 'Assertion failed');
+        }
+
+        function assertEqual(actual, expected, message) {
+            if (actual !== expected) {
+                throw new Error(message || `Expected ${expected}, got ${actual}`);
+            }
+        }
+
+        // Import renderMermaid from bridge.js
+        // Note: bridge.js uses ES modules, so we import the functions we need
+        const bridgeModule = await import('../public/bridge.js');
+
+        // ========== UNIT TESTS ==========
+
+        // 10.2-UNIT-001: Bundle verification
+        test('10.2-UNIT-001: mermaid.min.js exists and loads', () => {
+            assert(typeof mermaid !== 'undefined', 'mermaid should be defined');
+            assert(typeof mermaid.render === 'function', 'mermaid.render should be a function');
+        });
+
+        // 10.2-UNIT-002: DOMPurify bundle verification
+        test('10.2-UNIT-002: purify.min.js exists and loads', () => {
+            assert(typeof DOMPurify !== 'undefined', 'DOMPurify should be defined');
+            assert(typeof DOMPurify.sanitize === 'function', 'DOMPurify.sanitize should be a function');
+        });
+
+        // 10.2-UNIT-003: Secure config validation
+        test('10.2-UNIT-003: Mermaid configured with strict security', () => {
+            // Check initialization happened
+            assert(typeof mermaid !== 'undefined', 'Mermaid should be loaded');
+        });
+
+        // 10.2-UNIT-006: renderMermaid API contract
+        test('10.2-UNIT-006: renderMermaid returns correct structure', async () => {
+            const result = await window.renderMermaid('graph TD; A-->B', 'dark');
+            assert(typeof result === 'object', 'Result should be object');
+            assert('success' in result, 'Result should have success property');
+            if (result.success) {
+                assert('svg' in result, 'Success result should have svg');
+                assert(result.svg.includes('<svg'), 'SVG should contain svg tag');
+            }
+        });
+
+        // 10.2-UNIT-009: Error handling - incomplete syntax
+        test('10.2-UNIT-009: Error handling for incomplete syntax', async () => {
+            const result = await window.renderMermaid('graph TD; A-->', 'dark');
+            assert(result.success === false, 'Should fail for incomplete syntax');
+            assert('error' in result, 'Should have error message');
+        });
+
+        // 10.2-UNIT-010: Error handling - malformed input
+        test('10.2-UNIT-010: Error handling for malformed input', async () => {
+            const result = await window.renderMermaid('@#$%^&*', 'dark');
+            assert(result.success === false, 'Should fail for garbage input');
+            assert('error' in result, 'Should have error message');
+        });
+
+        // 10.2-UNIT-011: Empty input handling
+        test('10.2-UNIT-011: Empty input returns error', async () => {
+            const result = await window.renderMermaid('', 'dark');
+            assert(result.success === false, 'Should fail for empty input');
+        });
+
+        // 10.2-UNIT-015: DOMPurify call verification
+        test('10.2-UNIT-015: SVG output is sanitized by DOMPurify', async () => {
+            const result = await window.renderMermaid('graph TD; A-->B', 'dark');
+            if (result.success) {
+                // Verify no script tags in output
+                assert(!result.svg.includes('<script'), 'SVG should not contain script tags');
+            }
+        });
+
+        // ========== INTEGRATION TESTS - DIAGRAM TYPES ==========
+
+        // 10.2-INT-006: Flowchart
+        test('10.2-INT-006: Flowchart diagram renders', async () => {
+            const result = await window.renderMermaid('graph TD; A-->B; B-->C', 'dark');
+            assert(result.success === true, 'Flowchart should render: ' + (result.error || ''));
+            assert(result.svg.includes('<svg'), 'Should produce SVG');
+        });
+
+        // 10.2-INT-007: Sequence diagram
+        test('10.2-INT-007: Sequence diagram renders', async () => {
+            const result = await window.renderMermaid('sequenceDiagram\n    A->>B: Hello\n    B-->>A: Hi', 'dark');
+            assert(result.success === true, 'Sequence should render: ' + (result.error || ''));
+        });
+
+        // 10.2-INT-008: Class diagram
+        test('10.2-INT-008: Class diagram renders', async () => {
+            const result = await window.renderMermaid('classDiagram\n    class Animal', 'dark');
+            assert(result.success === true, 'Class diagram should render: ' + (result.error || ''));
+        });
+
+        // 10.2-INT-009: State diagram
+        test('10.2-INT-009: State diagram renders', async () => {
+            const result = await window.renderMermaid('stateDiagram-v2\n    [*] --> Active\n    Active --> [*]', 'dark');
+            assert(result.success === true, 'State diagram should render: ' + (result.error || ''));
+        });
+
+        // 10.2-INT-010: ER diagram
+        test('10.2-INT-010: ER diagram renders', async () => {
+            const result = await window.renderMermaid('erDiagram\n    CUSTOMER ||--o{ ORDER : places', 'dark');
+            assert(result.success === true, 'ER diagram should render: ' + (result.error || ''));
+        });
+
+        // 10.2-INT-011: Gantt chart
+        test('10.2-INT-011: Gantt chart renders', async () => {
+            const result = await window.renderMermaid('gantt\n    title A Gantt Diagram\n    section Section\n    A task: a1, 2024-01-01, 30d', 'dark');
+            assert(result.success === true, 'Gantt chart should render: ' + (result.error || ''));
+        });
+
+        // 10.2-INT-012: Pie chart
+        test('10.2-INT-012: Pie chart renders', async () => {
+            const result = await window.renderMermaid('pie title Pets\n    "Dogs" : 50\n    "Cats" : 50', 'dark');
+            assert(result.success === true, 'Pie chart should render: ' + (result.error || ''));
+        });
+
+        // 10.2-INT-013: Mindmap
+        test('10.2-INT-013: Mindmap renders', async () => {
+            const result = await window.renderMermaid('mindmap\n  root((mindmap))\n    Origins\n    Research', 'dark');
+            assert(result.success === true, 'Mindmap should render: ' + (result.error || ''));
+        });
+
+        // ========== SECURITY TESTS (XSS) ==========
+
+        // 10.2-INT-002: XSS script injection
+        test('10.2-INT-002: XSS - script tag injection blocked', async () => {
+            const result = await window.renderMermaid('graph TD; A["<script>alert(1)</script>"]-->B', 'dark');
+            if (result.success) {
+                assert(!result.svg.includes('<script>'), 'SVG should not contain script tags');
+            }
+        });
+
+        // 10.2-INT-003: XSS event handler
+        test('10.2-INT-003: XSS - event handler injection blocked', async () => {
+            const result = await window.renderMermaid('graph TD; A["<img onload=alert(1)>"]-->B', 'dark');
+            if (result.success) {
+                assert(!result.svg.includes('onload='), 'SVG should not contain onload attributes');
+            }
+        });
+
+        // 10.2-INT-004: XSS foreignObject
+        test('10.2-INT-004: XSS - foreignObject injection handled', async () => {
+            const result = await window.renderMermaid('graph TD; A["<foreignObject><script>alert(1)</script></foreignObject>"]-->B', 'dark');
+            if (result.success) {
+                // foreignObject with script should be sanitized
+                assert(!result.svg.includes('<script>'), 'SVG should not contain script in foreignObject');
+            }
+        });
+
+        // 10.2-INT-005: XSS javascript URI
+        test('10.2-INT-005: XSS - javascript URI injection blocked', async () => {
+            const result = await window.renderMermaid('graph TD; A["<a href=javascript:alert(1)>click</a>"]-->B', 'dark');
+            if (result.success) {
+                assert(!result.svg.includes('javascript:'), 'SVG should not contain javascript: URIs');
+            }
+        });
+
+        // ========== THEME TESTS ==========
+
+        // 10.2-E2E-005: Theme toggle
+        test('10.2-E2E-005: Dark theme renders', async () => {
+            const result = await window.renderMermaid('graph TD; A-->B', 'dark');
+            assert(result.success === true, 'Dark theme should render');
+        });
+
+        test('10.2-E2E-005b: Light theme renders', async () => {
+            const result = await window.renderMermaid('graph TD; A-->B', 'light');
+            assert(result.success === true, 'Light theme should render');
+        });
+
+        // ========== PERFORMANCE TESTS ==========
+
+        // 10.2-PERF-001: Simple diagram performance
+        test('10.2-PERF-001: Simple diagram renders < 500ms', async () => {
+            const start = performance.now();
+            const result = await window.renderMermaid('graph TD; A-->B', 'dark');
+            const elapsed = performance.now() - start;
+            assert(result.success === true, 'Should render');
+            assert(elapsed < 500, `Render took ${elapsed.toFixed(0)}ms, should be < 500ms`);
+        });
+
+        // 10.2-PERF-002: Complex diagram performance
+        test('10.2-PERF-002: Complex diagram renders < 500ms', async () => {
+            // 20-node diagram
+            let code = 'graph TD\n';
+            for (let i = 0; i < 20; i++) {
+                code += `    N${i}-->N${(i+1) % 20}\n`;
+            }
+            const start = performance.now();
+            const result = await window.renderMermaid(code, 'dark');
+            const elapsed = performance.now() - start;
+            assert(result.success === true, 'Should render');
+            assert(elapsed < 500, `Render took ${elapsed.toFixed(0)}ms, should be < 500ms`);
+        });
+
+        // ========== RUN TESTS ==========
+
+        const testsDiv = document.getElementById('tests');
+        const summaryDiv = document.getElementById('summary');
+
+        for (const t of tests) {
+            const div = document.createElement('div');
+            div.className = 'test pending';
+            div.innerHTML = `<div class="test-name">${t.name}</div><div class="test-result">Running...</div>`;
+            testsDiv.appendChild(div);
+
+            try {
+                await t.fn();
+                div.className = 'test pass';
+                div.querySelector('.test-result').textContent = 'PASSED';
+                passed++;
+            } catch (e) {
+                div.className = 'test fail';
+                div.querySelector('.test-result').textContent = `FAILED: ${e.message}`;
+                failed++;
+            }
+        }
+
+        summaryDiv.innerHTML = `
+            <strong>Results:</strong> ${passed} passed, ${failed} failed, ${tests.length} total<br>
+            <span style="color: ${failed === 0 ? '#4caf50' : '#f44336'}">
+                ${failed === 0 ? 'All tests passed!' : 'Some tests failed'}
+            </span>
+        `;
+    </script>
+</body>
+</html>

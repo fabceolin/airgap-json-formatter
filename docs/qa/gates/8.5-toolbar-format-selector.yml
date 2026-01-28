@@ -1,0 +1,71 @@
+schema: 1
+story: "8.5"
+story_title: "Toolbar Format Selector"
+gate: PASS
+status_reason: "All 7 acceptance criteria verified in implementation. Format selector ComboBox correctly positioned, displayText binding works for auto-detection display, manual override logic via effectiveFormat property, keyboard accessibility enabled, tooltip configured, and reset function integrated with clear action. 17 unit tests created."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-01-28T14:30:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 2, low: 3 }
+  highest: medium
+  recommendations:
+    must_fix: []
+    monitor:
+      - "TECH-001: State sync during rapid input changes"
+      - "TECH-003: Property binding complexity"
+
+quality_score: 100
+expires: "2026-02-11T00:00:00Z"
+
+evidence:
+  tests_reviewed: 17
+  risks_identified: 5
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Pure UI state management; no data exposure or network calls"
+  performance:
+    status: PASS
+    notes: "O(1) ComboBox operations; reactive QML bindings; <1ms expected latency"
+  reliability:
+    status: PASS
+    notes: "Clear manual>auto precedence; defined reset triggers; static model"
+  maintainability:
+    status: PASS
+    notes: "Reuses indentCombo pattern; 17 test scenarios; well-documented"
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Consider adding screen reader / ARIA testing for enhanced accessibility verification"
+      refs: ["qt/qml/Toolbar.qml:125-217"]
+
+implementation_verification:
+  toolbar_qml:
+    formatCombo_exists: true
+    detectedFormat_property: true
+    effectiveFormat_property: true
+    formatSelected_signal: true
+    resetFormatSelector_function: true
+    tooltip_configured: true
+    focusPolicy_strongFocus: true
+  main_qml:
+    detectedFormat_binding: true
+    formatSelected_handler: true
+    formatRequested_uses_effectiveFormat: true
+    minifyRequested_uses_effectiveFormat: true
+    clearRequested_calls_reset: true
+  tests:
+    test_file: "qt/tests/tst_format_selector.cpp"
+    test_count: 17
+    cmake_target: "tst_format_selector"
+    coverage_status: "All 7 ACs covered"

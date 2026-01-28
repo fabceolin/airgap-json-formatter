@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Format Auto-Detection Tests (Story 8.4 + 10.4 Markdown)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            margin: 2rem;
+            background: #1a1a1a;
+            color: #e0e0e0;
+        }
+        h1 { color: #4fc3f7; margin-bottom: 1rem; }
+        h2 { color: #81c784; margin-top: 1.5rem; }
+        .test-group { margin-bottom: 1rem; padding: 1rem; background: #2a2a2a; border-radius: 8px; }
+        .test { margin: 0.5rem 0; padding: 0.5rem; border-radius: 4px; }
+        .pass { background: #1b3a1b; color: #81c784; }
+        .fail { background: #3a1b1b; color: #e57373; }
+        .pending { background: #3a3a1b; color: #fff176; }
+        .summary { margin-top: 2rem; padding: 1rem; background: #333; border-radius: 8px; }
+        .test-input { font-family: monospace; color: #90caf9; }
+        .test-expected { color: #a5d6a7; }
+        #loading { color: #fff176; }
+    </style>
+</head>
+<body>
+    <h1>Format Auto-Detection Tests (Story 8.4 + 10.4)</h1>
+    <p id="loading">Loading WASM module...</p>
+    <div id="results"></div>
+    <div id="summary" class="summary" style="display:none;"></div>
+
+    <script type="module">
+        // Wait for WASM module to load
+        async function waitForWasm() {
+            const maxWait = 30000;
+            const start = Date.now();
+            while (!window.JsonBridge?.detectFormat) {
+                if (Date.now() - start > maxWait) {
+                    throw new Error('WASM module did not load in time');
+                }
+                await new Promise(r => setTimeout(r, 100));
+            }
+        }
+
+        // Test utilities
+        let passed = 0, failed = 0;
+        const results = document.getElementById('results');
+
+        function test(name, testFn) {
+            const div = document.createElement('div');
+            div.className = 'test';
+            try {
+                testFn();
+                div.className += ' pass';
+                div.innerHTML = `PASS: ${name}`;
+                passed++;
+            } catch (e) {
+                div.className += ' fail';
+                div.innerHTML = `FAIL: ${name}<br><small>${e.message}</small>`;
+                failed++;
+            }
+            return div;
+        }
+
+        function assertEqual(actual, expected, msg) {
+            if (actual !== expected) {
+                throw new Error(`${msg}: expected "${expected}", got "${actual}"`);
+            }
+        }
+
+        function assertTrue(condition, msg) {
+            if (!condition) {
+                throw new Error(msg);
+            }
+        }
+
+        // Run all tests
+        async function runTests() {
+            try {
+                await waitForWasm();
+                document.getElementById('loading').style.display = 'none';
+
+                // ========== AC3: Detection Logic Tests ==========
+                const group1 = document.createElement('div');
+                group1.className = 'test-group';
+                group1.innerHTML = '<h2>AC3: Detection Logic</h2>';
+                results.appendChild(group1);
+
+                group1.appendChild(test('JSON object detection', () => {
+                    const result = JsonBridge.detectFormat('{"a":1}');
+                    assertEqual(result, 'json', 'JSON object');
+                }));
+
+                group1.appendChild(test('JSON array detection', () => {
+                    const result = JsonBridge.detectFormat('[1,2,3]');
+                    assertEqual(result, 'json', 'JSON array');
+                }));
+
+                group1.appendChild(test('XML element detection', () => {
+                    const result = JsonBridge.detectFormat('<root/>');
+                    assertEqual(result, 'xml', 'XML element');
+                }));
+
+                group1.appendChild(test('XML declaration detection', () => {
+                    const result = JsonBridge.detectFormat('<?xml version="1.0"?>');
+                    assertEqual(result, 'xml', 'XML declaration');
+                }));
+
+                group1.appendChild(test('HTML doctype treated as XML', () => {
+                    const result = JsonBridge.detectFormat('<!DOCTYPE html>');
+                    assertEqual(result, 'xml', 'HTML doctype');
+                }));
+
+                group1.appendChild(test('Plain text returns unknown', () => {
+                    const result = JsonBridge.detectFormat('hello world');
+                    assertEqual(result, 'unknown', 'Plain text');
+                }));
+
+                group1.appendChild(test('Empty input returns unknown', () => {
+                    const result = JsonBridge.detectFormat('');
+                    assertEqual(result, 'unknown', 'Empty input');
+                }));
+
+                // ========== AC6: Whitespace Handling ==========
+                const group2 = document.createElement('div');
+                group2.className = 'test-group';
+                group2.innerHTML = '<h2>AC6: Whitespace Handling</h2>';
+                results.appendChild(group2);
+
+                group2.appendChild(test('JSON with leading whitespace', () => {
+                    const result = JsonBridge.detectFormat('  \n  {"a":1}');
+                    assertEqual(result, 'json', 'JSON with whitespace');
+                }));
+
+                group2.appendChild(test('JSON array with leading tabs', () => {
+                    const result = JsonBridge.detectFormat('\t\n  [1,2,3]');
+                    assertEqual(result, 'json', 'JSON array with tabs');
+                }));
+
+                group2.appendChild(test('XML with leading whitespace', () => {
+                    const result = JsonBridge.detectFormat('  \n\t<root/>');
+                    assertEqual(result, 'xml', 'XML with whitespace');
+                }));
+
+                group2.appendChild(test('Whitespace-only returns unknown', () => {
+                    const result = JsonBridge.detectFormat('   \n\t  ');
+                    assertEqual(result, 'unknown', 'Whitespace-only');
+                }));
+
+                // ========== AC4: Unknown Format Handling ==========
+                const group3 = document.createElement('div');
+                group3.className = 'test-group';
+                group3.innerHTML = '<h2>AC4: Unknown Format Edge Cases</h2>';
+                results.appendChild(group3);
+
+                group3.appendChild(test('JSON primitive null returns unknown', () => {
+                    const result = JsonBridge.detectFormat('null');
+                    assertEqual(result, 'unknown', 'null primitive');
+                }));
+
+                group3.appendChild(test('JSON primitive number returns unknown', () => {
+                    const result = JsonBridge.detectFormat('123');
+                    assertEqual(result, 'unknown', 'number primitive');
+                }));
+
+                group3.appendChild(test('JSON primitive true returns unknown', () => {
+                    const result = JsonBridge.detectFormat('true');
+                    assertEqual(result, 'unknown', 'true primitive');
+                }));
+
+                group3.appendChild(test('Quoted string returns unknown', () => {
+                    const result = JsonBridge.detectFormat('"just a string"');
+                    assertEqual(result, 'unknown', 'quoted string');
+                }));
+
+                // ========== AC7: Performance Tests ==========
+                const group4 = document.createElement('div');
+                group4.className = 'test-group';
+                group4.innerHTML = '<h2>AC7: Performance (< 1ms)</h2>';
+                results.appendChild(group4);
+
+                group4.appendChild(test('Small input detection is fast', () => {
+                    const start = performance.now();
+                    for (let i = 0; i < 1000; i++) {
+                        JsonBridge.detectFormat('{"key":"value"}');
+                    }
+                    const elapsed = performance.now() - start;
+                    assertTrue(elapsed < 100, `1000 detections took ${elapsed}ms (should be < 100ms)`);
+                }));
+
+                group4.appendChild(test('Large JSON input detection is fast', () => {
+                    const largeInput = '{"data":"' + 'x'.repeat(100000) + '"}';
+                    const start = performance.now();
+                    const result = JsonBridge.detectFormat(largeInput);
+                    const elapsed = performance.now() - start;
+                    assertEqual(result, 'json', 'Large JSON');
+                    assertTrue(elapsed < 10, `100KB detection took ${elapsed}ms (should be < 10ms)`);
+                }));
+
+                group4.appendChild(test('Large XML input detection is fast', () => {
+                    const largeInput = '<root>' + 'x'.repeat(100000) + '</root>';
+                    const start = performance.now();
+                    const result = JsonBridge.detectFormat(largeInput);
+                    const elapsed = performance.now() - start;
+                    assertEqual(result, 'xml', 'Large XML');
+                    assertTrue(elapsed < 10, `100KB detection took ${elapsed}ms (should be < 10ms)`);
+                }));
+
+                // ========== AC2: Format Button Routing Tests ==========
+                const group5 = document.createElement('div');
+                group5.className = 'test-group';
+                group5.innerHTML = '<h2>AC2: Format Button Detection</h2>';
+                results.appendChild(group5);
+
+                group5.appendChild(test('formatJson called for JSON object', async () => {
+                    const result = JsonBridge.formatJson('{"a":1}', 'spaces:4');
+                    assertTrue(result.includes('success') || result.includes('"a"'), 'Should format JSON');
+                }));
+
+                group5.appendChild(test('formatXml called for XML element', async () => {
+                    const result = JsonBridge.formatXml('<root><child/></root>', 'spaces:4');
+                    assertTrue(result.includes('success') || result.includes('<root>'), 'Should format XML');
+                }));
+
+                // ========== Story 10.4: Markdown Detection Tests ==========
+                const group6 = document.createElement('div');
+                group6.className = 'test-group';
+                group6.innerHTML = '<h2>Story 10.4: Markdown Detection</h2>';
+                results.appendChild(group6);
+
+                group6.appendChild(test('ATX heading H1 detected', () => {
+                    const result = JsonBridge.detectFormat('# Heading');
+                    assertEqual(result, 'markdown', 'H1 heading');
+                }));
+
+                group6.appendChild(test('ATX heading H2 detected', () => {
+                    const result = JsonBridge.detectFormat('## Subheading');
+                    assertEqual(result, 'markdown', 'H2 heading');
+                }));
+
+                group6.appendChild(test('Code block detected', () => {
+                    const result = JsonBridge.detectFormat('```javascript\nconsole.log();\n```');
+                    assertEqual(result, 'markdown', 'Code block');
+                }));
+
+                group6.appendChild(test('YAML frontmatter detected', () => {
+                    const result = JsonBridge.detectFormat('---\ntitle: Test\n---');
+                    assertEqual(result, 'markdown', 'Frontmatter');
+                }));
+
+                group6.appendChild(test('Unordered list with dash detected', () => {
+                    const result = JsonBridge.detectFormat('- List item');
+                    assertEqual(result, 'markdown', 'Unordered list (-)');
+                }));
+
+                group6.appendChild(test('Unordered list with asterisk detected', () => {
+                    const result = JsonBridge.detectFormat('* List item');
+                    assertEqual(result, 'markdown', 'Unordered list (*)');
+                }));
+
+                group6.appendChild(test('Ordered list detected', () => {
+                    const result = JsonBridge.detectFormat('1. First item');
+                    assertEqual(result, 'markdown', 'Ordered list');
+                }));
+
+                group6.appendChild(test('Blockquote detected', () => {
+                    const result = JsonBridge.detectFormat('> This is a quote');
+                    assertEqual(result, 'markdown', 'Blockquote');
+                }));
+
+                group6.appendChild(test('Link pattern detected', () => {
+                    const result = JsonBridge.detectFormat('Check [this link](https://example.com)');
+                    assertEqual(result, 'markdown', 'Link pattern');
+                }));
+
+                // ========== Story 10.4: False Positive Prevention ==========
+                const group7 = document.createElement('div');
+                group7.className = 'test-group';
+                group7.innerHTML = '<h2>Story 10.4: False Positive Prevention</h2>';
+                results.appendChild(group7);
+
+                group7.appendChild(test('Hashtag without space returns unknown', () => {
+                    const result = JsonBridge.detectFormat('#hashtag');
+                    assertEqual(result, 'unknown', 'Hashtag no space');
+                }));
+
+                group7.appendChild(test('Hex color returns unknown', () => {
+                    const result = JsonBridge.detectFormat('#ffffff');
+                    assertEqual(result, 'unknown', 'Hex color');
+                }));
+
+                group7.appendChild(test('C include returns unknown', () => {
+                    const result = JsonBridge.detectFormat('#include <stdio.h>');
+                    assertEqual(result, 'unknown', 'C include');
+                }));
+
+                group7.appendChild(test('JSON with markdown-like content returns json', () => {
+                    const result = JsonBridge.detectFormat('{"title": "# Heading"}');
+                    assertEqual(result, 'json', 'JSON priority');
+                }));
+
+                group7.appendChild(test('XML with markdown-like content returns xml', () => {
+                    const result = JsonBridge.detectFormat('<root># Heading</root>');
+                    assertEqual(result, 'xml', 'XML priority');
+                }));
+
+                // ========== Story 10.4: Markdown Performance ==========
+                const group8 = document.createElement('div');
+                group8.className = 'test-group';
+                group8.innerHTML = '<h2>Story 10.4: Markdown Performance</h2>';
+                results.appendChild(group8);
+
+                group8.appendChild(test('Large markdown detection is fast (2KB cap)', () => {
+                    const largeInput = '# Heading\n\n' + 'x'.repeat(10000);
+                    const start = performance.now();
+                    const result = JsonBridge.detectFormat(largeInput);
+                    const elapsed = performance.now() - start;
+                    assertEqual(result, 'markdown', 'Large markdown');
+                    assertTrue(elapsed < 10, `10KB markdown detection took ${elapsed}ms (should be < 10ms)`);
+                }));
+
+                group8.appendChild(test('Large plain text is fast (2KB search limit)', () => {
+                    const largeInput = 'x'.repeat(100000);
+                    const start = performance.now();
+                    const result = JsonBridge.detectFormat(largeInput);
+                    const elapsed = performance.now() - start;
+                    assertEqual(result, 'unknown', 'Large plain text');
+                    assertTrue(elapsed < 50, `100KB plain text detection took ${elapsed}ms (should be < 50ms)`);
+                }));
+
+                // ========== Summary ==========
+                const summary = document.getElementById('summary');
+                summary.style.display = 'block';
+                const total = passed + failed;
+                summary.innerHTML = `
+                    <h2>Test Summary</h2>
+                    <p>Passed: <span style="color:#81c784">${passed}</span> / ${total}</p>
+                    <p>Failed: <span style="color:#e57373">${failed}</span> / ${total}</p>
+                    <p>Status: ${failed === 0 ? '<span style="color:#81c784">ALL TESTS PASSED</span>' : '<span style="color:#e57373">SOME TESTS FAILED</span>'}</p>
+                `;
+
+            } catch (e) {
+                document.getElementById('loading').innerHTML =
+                    `<span style="color:#e57373">Error: ${e.message}</span>`;
+            }
+        }
+
+        // Start tests when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', runTests);
+        } else {
+            runTests();
+        }
+    </script>
+</body>
+</html>
