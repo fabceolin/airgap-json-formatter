@@ -1,0 +1,25 @@
+{
+    "name": "Airgap JSON Formatter",
+    "short_name": "Airgap JSON",
+    "description": "Security-first, offline JSON formatting tool. All processing happens locally - your data never leaves your device.",
+    "start_url": "./",
+    "display": "standalone",
+    "background_color": "#1e1e1e",
+    "theme_color": "#1e1e1e",
+    "orientation": "any",
+    "categories": ["developer tools", "utilities"],
+    "icons": [
+        {
+            "src": "./icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "./icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ]
+}

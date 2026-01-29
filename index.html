@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Security-first, offline JSON formatting tool. All processing happens locally.">
+    <meta name="theme-color" content="#1e1e1e">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%231e1e1e'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-size='16' font-weight='bold' fill='%234ec9b0'%3E%7B%7D%3C/text%3E%3C/svg%3E">
+    <link rel="manifest" href="manifest.json">
+    <title>Airgap JSON Formatter</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #1e1e1e;
+        }
+        #qt-container {
+            width: 100%;
+            height: 100%;
+        }
+        #qt-container canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #d4d4d4;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            text-align: center;
+        }
+        .loading h1 {
+            color: #4ec9b0;
+            margin-bottom: 10px;
+        }
+        .loading .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #3c3c3c;
+            border-top-color: #0078d4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading .status {
+            color: #808080;
+            font-size: 14px;
+        }
+        .error {
+            color: #f44747;
+        }
+    </style>
+</head>
+<body>
+    <div id="qt-container"></div>
+    <div class="loading" id="loading">
+        <h1>Airgap JSON Formatter</h1>
+        <div class="spinner"></div>
+        <div class="status" id="status">Loading Qt WASM...</div>
+    </div>
+
+    <!-- JSPI Feature Detection (must load before app initialization) -->
+    <script src="jspi-detect.js"></script>
+
+    <!-- Suppress known emscripten/Asyncify internal errors -->
+    <script>
+        // Known emscripten Asyncify bug: internal state management sometimes tries to
+        // access properties on undefined objects during async state transitions.
+        // These errors don't affect functionality, so we suppress them.
+        window.addEventListener('unhandledrejection', function(event) {
+            const msg = event.reason && event.reason.message ? event.reason.message : String(event.reason);
+            // Suppress known emscripten internal errors
+            if (msg.includes("Cannot read properties of undefined (reading 'index')") ||
+                msg.includes("Cannot read properties of undefined (reading 'className')")) {
+                console.debug('[Emscripten] Suppressed known Asyncify internal error:', msg);
+                event.preventDefault();
+                return;
+            }
+        });
+    </script>
+
+    <!-- Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .then((registration) => {
+                        console.log('[App] Service Worker registered:', registration.scope);
+                    })
+                    .catch((error) => {
+                        console.error('[App] Service Worker registration failed:', error);
+                    });
+            });
+        }
+    </script>
+
+    <!-- Qt WASM Loader -->
+    <script type="module">
+        // First, initialize the Rust WASM bridge for JSON processing
+        import { initBridge } from './bridge.js';
+        import { initHistoryDB } from './history-storage.js';
+
+        const statusEl = document.getElementById('status');
+        const loadingEl = document.getElementById('loading');
+
+        async function init() {
+            try {
+                // Initialize Rust WASM for JSON processing
+                statusEl.textContent = 'Loading JSON processor...';
+                await initBridge();
+                console.log('[Airgap] Rust WASM JSON processor ready');
+
+                // Initialize history storage
+                await initHistoryDB();
+                console.log('[Airgap] History storage ready');
+
+                // Now load Qt WASM for the GUI
+                statusEl.textContent = 'Loading Qt interface...';
+
+                // Import the ES6 module - it exports createQtAppInstance as default
+                const createQtAppInstance = (await import('./airgap_formatter.js')).default;
+
+                if (typeof createQtAppInstance !== 'function') {
+                    throw new Error('Qt WASM module did not export factory function');
+                }
+
+                // Get container element for Qt
+                const container = document.getElementById('qt-container');
+
+                // Set up observer to hide loading when Qt canvas renders
+                const hideLoadingWhenReady = () => {
+                    const observer = new MutationObserver((mutations, obs) => {
+                        const canvas = container.querySelector('canvas');
+                        if (canvas) {
+                            // Wait for canvas to have dimensions (actually rendered)
+                            const checkVisible = () => {
+                                if (canvas.offsetWidth > 0 && canvas.offsetHeight > 0) {
+                                    loadingEl.style.display = 'none';
+                                    obs.disconnect();
+                                    console.log('[Airgap] Qt canvas rendered, loading hidden');
+                                } else {
+                                    requestAnimationFrame(checkVisible);
+                                }
+                            };
+                            checkVisible();
+                        }
+                    });
+                    observer.observe(container, { childList: true, subtree: true });
+                };
+                hideLoadingWhenReady();
+
+                statusEl.textContent = 'Initializing Qt...';
+
+                // Initialize Qt WASM with container elements (Qt 6 API)
+                const instance = await createQtAppInstance({
+                    qtContainerElements: [container],
+                    arguments: [],
+                });
+
+                console.log('[Airgap] Qt application started');
+                console.log('[Airgap] Zero network requests - all processing local');
+
+            } catch (error) {
+                console.error('[Airgap] Initialization failed:', error);
+                statusEl.innerHTML = `<span class="error">Failed to load: ${error.message}</span>`;
+
+                // Fall back to basic HTML interface if Qt fails
+                setTimeout(() => {
+                    statusEl.innerHTML += '<br><br>Loading fallback interface...';
+                    loadFallback();
+                }, 2000);
+            }
+        }
+
+        async function loadFallback() {
+            // Load a simple fallback interface if Qt WASM fails
+            document.body.innerHTML = `
+                <div style="padding: 20px; font-family: -apple-system, sans-serif; background: #1e1e1e; color: #d4d4d4; min-height: 100vh;">
+                    <h1 style="color: #4ec9b0;">Airgap JSON Formatter</h1>
+                    <p style="color: #808080;">Qt WASM failed to load. Using fallback interface.</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 5px;">Input JSON</label>
+                            <textarea id="input" style="width: 100%; height: 300px; background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 10px; font-family: monospace;"></textarea>
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 5px;">Output</label>
+                            <textarea id="output" readonly style="width: 100%; height: 300px; background: #252526; color: #d4d4d4; border: 1px solid #3c3c3c; padding: 10px; font-family: monospace;"></textarea>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button onclick="formatJson()" style="background: #0078d4; color: white; border: none; padding: 10px 20px; cursor: pointer;">Format</button>
+                        <button onclick="minifyJson()" style="background: #0078d4; color: white; border: none; padding: 10px 20px; cursor: pointer; margin-left: 10px;">Minify</button>
+                    </div>
+                    <div id="status" style="margin-top: 10px; color: #808080;"></div>
+                </div>
+            `;
+
+            window.formatJson = () => {
+                const result = window.JsonBridge.formatJson(document.getElementById('input').value, 'spaces:4');
+                document.getElementById('output').value = result.success ? result.result : result.error;
+            };
+            window.minifyJson = () => {
+                const result = window.JsonBridge.minifyJson(document.getElementById('input').value);
+                document.getElementById('output').value = result.success ? result.result : result.error;
+            };
+        }
+
+        init();
+    </script>
+</body>
+</html>
