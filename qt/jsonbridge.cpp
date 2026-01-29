@@ -13,6 +13,8 @@
 #include <QUuid>
 #include <QPromise>
 #include <QRegularExpression>
+#include <QXmlStreamReader>
+#include <QXmlStreamWriter>
 
 #ifdef __EMSCRIPTEN__
 #include <emscripten/val.h>
@@ -42,6 +44,294 @@ static QString minifyJsonNative(const QString &input) {
     }
 
     return QString::fromUtf8(doc.toJson(QJsonDocument::Compact));
+}
+
+// Desktop-only: XML formatting with indentation
+static QString formatXmlNative(const QString &input, const QString &indentType) {
+    // Determine indent string based on type
+    QString indentStr;
+    if (indentType == "tabs") {
+        indentStr = "\t";
+    } else if (indentType == "spaces:2") {
+        indentStr = "  ";
+    } else {
+        indentStr = "    ";  // Default: 4 spaces
+    }
+
+    // Parse and validate XML
+    QXmlStreamReader reader(input);
+    QString output;
+    QXmlStreamWriter writer(&output);
+    writer.setAutoFormatting(true);
+    writer.setAutoFormattingIndent(indentStr.length());
+
+    // For tabs, we need custom handling since QXmlStreamWriter only supports space count
+    bool useTabs = (indentType == "tabs");
+
+    while (!reader.atEnd()) {
+        reader.readNext();
+
+        switch (reader.tokenType()) {
+        case QXmlStreamReader::StartDocument:
+            writer.writeStartDocument(reader.documentVersion().toString(),
+                                     reader.isStandaloneDocument());
+            break;
+        case QXmlStreamReader::EndDocument:
+            writer.writeEndDocument();
+            break;
+        case QXmlStreamReader::StartElement:
+            writer.writeStartElement(reader.namespaceUri().toString(),
+                                    reader.name().toString());
+            for (const QXmlStreamAttribute &attr : reader.attributes()) {
+                writer.writeAttribute(attr);
+            }
+            break;
+        case QXmlStreamReader::EndElement:
+            writer.writeEndElement();
+            break;
+        case QXmlStreamReader::Characters:
+            if (!reader.isWhitespace()) {
+                writer.writeCharacters(reader.text().toString());
+            }
+            break;
+        case QXmlStreamReader::Comment:
+            writer.writeComment(reader.text().toString());
+            break;
+        case QXmlStreamReader::DTD:
+            writer.writeDTD(reader.text().toString());
+            break;
+        case QXmlStreamReader::ProcessingInstruction:
+            writer.writeProcessingInstruction(reader.processingInstructionTarget().toString(),
+                                             reader.processingInstructionData().toString());
+            break;
+        case QXmlStreamReader::EntityReference:
+            writer.writeEntityReference(reader.name().toString());
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (reader.hasError()) {
+        return QString();  // Return empty on parse error
+    }
+
+    // If using tabs, replace leading spaces with tabs
+    if (useTabs) {
+        QStringList lines = output.split('\n');
+        for (int i = 0; i < lines.size(); ++i) {
+            QString &line = lines[i];
+            int spaces = 0;
+            while (spaces < line.length() && line[spaces] == ' ') {
+                ++spaces;
+            }
+            if (spaces > 0) {
+                int tabCount = spaces / 4;  // QXmlStreamWriter uses 4-space indent internally
+                line = QString(tabCount, '\t') + line.mid(spaces);
+            }
+        }
+        output = lines.join('\n');
+    }
+
+    return output;
+}
+
+static QString minifyXmlNative(const QString &input) {
+    // Parse and validate XML, then output without formatting
+    QXmlStreamReader reader(input);
+    QString output;
+    QXmlStreamWriter writer(&output);
+    writer.setAutoFormatting(false);
+
+    while (!reader.atEnd()) {
+        reader.readNext();
+
+        switch (reader.tokenType()) {
+        case QXmlStreamReader::StartDocument:
+            writer.writeStartDocument(reader.documentVersion().toString(),
+                                     reader.isStandaloneDocument());
+            break;
+        case QXmlStreamReader::EndDocument:
+            writer.writeEndDocument();
+            break;
+        case QXmlStreamReader::StartElement:
+            writer.writeStartElement(reader.namespaceUri().toString(),
+                                    reader.name().toString());
+            for (const QXmlStreamAttribute &attr : reader.attributes()) {
+                writer.writeAttribute(attr);
+            }
+            break;
+        case QXmlStreamReader::EndElement:
+            writer.writeEndElement();
+            break;
+        case QXmlStreamReader::Characters:
+            if (!reader.isWhitespace()) {
+                writer.writeCharacters(reader.text().toString());
+            }
+            break;
+        case QXmlStreamReader::Comment:
+            writer.writeComment(reader.text().toString());
+            break;
+        case QXmlStreamReader::DTD:
+            writer.writeDTD(reader.text().toString());
+            break;
+        case QXmlStreamReader::ProcessingInstruction:
+            writer.writeProcessingInstruction(reader.processingInstructionTarget().toString(),
+                                             reader.processingInstructionData().toString());
+            break;
+        case QXmlStreamReader::EntityReference:
+            writer.writeEntityReference(reader.name().toString());
+            break;
+        default:
+            break;
+        }
+    }
+
+    if (reader.hasError()) {
+        return QString();  // Return empty on parse error
+    }
+
+    return output;
+}
+
+// Helper: Process inline markdown (bold, italic, code, links)
+static QString processInlineMarkdown(const QString &text) {
+    QString result = text.toHtmlEscaped();
+
+    // Inline code (must be before bold/italic to avoid conflicts)
+    result.replace(QRegularExpression("`([^`]+)`"), "<code>\\1</code>");
+
+    // Bold **text** or __text__
+    result.replace(QRegularExpression("\\*\\*([^*]+)\\*\\*"), "<strong>\\1</strong>");
+    result.replace(QRegularExpression("__([^_]+)__"), "<strong>\\1</strong>");
+
+    // Italic *text* or _text_
+    result.replace(QRegularExpression("\\*([^*]+)\\*"), "<em>\\1</em>");
+    result.replace(QRegularExpression("_([^_]+)_"), "<em>\\1</em>");
+
+    // Links [text](url)
+    result.replace(QRegularExpression("\\[([^\\]]+)\\]\\(([^)]+)\\)"), "<a href=\"\\2\">\\1</a>");
+
+    return result;
+}
+
+// Desktop-only: Basic Markdown to HTML rendering
+// Supports: headers, bold, italic, code, links, lists, blockquotes, hr
+static QString renderMarkdownNative(const QString &input) {
+    QString html;
+    QStringList lines = input.split('\n');
+    bool inCodeBlock = false;
+    bool inList = false;
+    QString listType;
+
+    for (int i = 0; i < lines.size(); ++i) {
+        QString line = lines[i];
+
+        // Code blocks (```)
+        if (line.trimmed().startsWith("```")) {
+            if (inCodeBlock) {
+                html += "</code></pre>\n";
+                inCodeBlock = false;
+            } else {
+                if (inList) {
+                    html += (listType == "ul") ? "</ul>\n" : "</ol>\n";
+                    inList = false;
+                }
+                html += "<pre><code>";
+                inCodeBlock = true;
+            }
+            continue;
+        }
+
+        if (inCodeBlock) {
+            html += line.toHtmlEscaped() + "\n";
+            continue;
+        }
+
+        // Close list if line doesn't continue it
+        if (inList && !line.trimmed().startsWith("-") && !line.trimmed().startsWith("*") &&
+            !QRegularExpression("^\\d+\\.\\s").match(line.trimmed()).hasMatch() &&
+            !line.trimmed().isEmpty()) {
+            html += (listType == "ul") ? "</ul>\n" : "</ol>\n";
+            inList = false;
+        }
+
+        // Empty line
+        if (line.trimmed().isEmpty()) {
+            if (inList) {
+                html += (listType == "ul") ? "</ul>\n" : "</ol>\n";
+                inList = false;
+            }
+            html += "<br>\n";
+            continue;
+        }
+
+        // Headers
+        QRegularExpression headerRe("^(#{1,6})\\s+(.*)$");
+        QRegularExpressionMatch headerMatch = headerRe.match(line);
+        if (headerMatch.hasMatch()) {
+            int level = headerMatch.captured(1).length();
+            QString content = headerMatch.captured(2);
+            html += QString("<h%1>%2</h%1>\n").arg(level).arg(content.toHtmlEscaped());
+            continue;
+        }
+
+        // Horizontal rule
+        if (QRegularExpression("^[-*_]{3,}$").match(line.trimmed()).hasMatch()) {
+            html += "<hr>\n";
+            continue;
+        }
+
+        // Blockquote
+        if (line.trimmed().startsWith(">")) {
+            QString content = line.trimmed().mid(1).trimmed();
+            html += QString("<blockquote>%1</blockquote>\n").arg(content.toHtmlEscaped());
+            continue;
+        }
+
+        // Unordered list
+        QRegularExpression ulRe("^\\s*[-*]\\s+(.*)$");
+        QRegularExpressionMatch ulMatch = ulRe.match(line);
+        if (ulMatch.hasMatch()) {
+            if (!inList || listType != "ul") {
+                if (inList) html += "</ol>\n";
+                html += "<ul>\n";
+                inList = true;
+                listType = "ul";
+            }
+            QString content = ulMatch.captured(1);
+            html += QString("<li>%1</li>\n").arg(processInlineMarkdown(content));
+            continue;
+        }
+
+        // Ordered list
+        QRegularExpression olRe("^\\s*\\d+\\.\\s+(.*)$");
+        QRegularExpressionMatch olMatch = olRe.match(line);
+        if (olMatch.hasMatch()) {
+            if (!inList || listType != "ol") {
+                if (inList) html += "</ul>\n";
+                html += "<ol>\n";
+                inList = true;
+                listType = "ol";
+            }
+            QString content = olMatch.captured(1);
+            html += QString("<li>%1</li>\n").arg(processInlineMarkdown(content));
+            continue;
+        }
+
+        // Regular paragraph
+        html += QString("<p>%1</p>\n").arg(processInlineMarkdown(line));
+    }
+
+    // Close any open elements
+    if (inCodeBlock) {
+        html += "</code></pre>\n";
+    }
+    if (inList) {
+        html += (listType == "ul") ? "</ul>\n" : "</ol>\n";
+    }
+
+    return html;
 }
 
 static void countJsonStats(const QJsonValue &value, QVariantMap &stats, int depth) {
@@ -1070,8 +1360,13 @@ void JsonBridge::requestRenderMarkdown(const QString &input)
             error = "Unknown error in renderMarkdown";
         }
 #else
-        // Desktop: Markdown rendering only available in WASM build
-        error = "Markdown rendering only available in WASM build";
+        // Desktop native implementation
+        html = renderMarkdownNative(input);
+        if (!html.isEmpty()) {
+            success = true;
+        } else {
+            error = "Failed to render Markdown";
+        }
 #endif
 
         // Emit signal on main thread
@@ -1146,8 +1441,18 @@ void JsonBridge::requestRenderMarkdownWithMermaid(const QString &input, const QS
             error = "Unknown error in renderMarkdownWithMermaid";
         }
 #else
-        // Desktop: Markdown+Mermaid rendering only available in WASM build
-        error = "Markdown+Mermaid rendering only available in WASM build";
+        // Desktop native implementation (Markdown only, Mermaid diagrams not rendered)
+        Q_UNUSED(theme);
+        html = renderMarkdownNative(input);
+        if (!html.isEmpty()) {
+            success = true;
+            // Add warning about Mermaid not being supported
+            if (input.contains("```mermaid")) {
+                warnings.append("Mermaid diagrams are only rendered in the web version");
+            }
+        } else {
+            error = "Failed to render Markdown";
+        }
 #endif
 
         // Emit signal on main thread
@@ -1274,9 +1579,14 @@ void JsonBridge::formatXml(const QString &input, const QString &indentType)
             result["error"] = "Unknown error in formatXml";
         }
 #else
-        // Desktop: XML formatting not available (requires Rust WASM)
-        Q_UNUSED(indentType);
-        result["error"] = "XML formatting not available in desktop build";
+        // Desktop native implementation
+        QString formatted = formatXmlNative(input, indentType);
+        if (formatted.isEmpty()) {
+            result["error"] = "Invalid XML";
+        } else {
+            result["success"] = true;
+            result["result"] = formatted;
+        }
 #endif
 
         // Emit signal on main thread
@@ -1335,8 +1645,14 @@ void JsonBridge::minifyXml(const QString &input)
             result["error"] = "Unknown error in minifyXml";
         }
 #else
-        // Desktop: XML minification not available (requires Rust WASM)
-        result["error"] = "XML minification not available in desktop build";
+        // Desktop native implementation
+        QString minified = minifyXmlNative(input);
+        if (minified.isEmpty()) {
+            result["error"] = "Invalid XML";
+        } else {
+            result["success"] = true;
+            result["result"] = minified;
+        }
 #endif
 
         // Emit signal on main thread

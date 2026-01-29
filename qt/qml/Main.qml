@@ -322,7 +322,7 @@ ApplicationWindow {
             }
 
             // Story 10.5: View mode toggle now uses explicit mode
-            onViewModeChanged: function(mode) {
+            onViewModeChangeRequested: function(mode) {
                 window.viewMode = mode;
             }
 

@@ -12,7 +12,7 @@ Rectangle {
     signal minifyRequested()
     signal copyRequested()
     signal clearRequested()
-    signal viewModeChanged(string mode)  // Story 10.5: Changed from toggle to explicit mode
+    signal viewModeChangeRequested(string mode)  // Story 10.5: Changed from toggle to explicit mode
     signal expandAllRequested()
     signal collapseAllRequested()
     signal loadHistoryRequested()
@@ -390,7 +390,7 @@ Rectangle {
 
                 onClicked: {
                     if (toolbar.viewMode !== "text") {
-                        toolbar.viewModeChanged("text")
+                        toolbar.viewModeChangeRequested("text")
                     }
                 }
 
@@ -430,7 +430,7 @@ Rectangle {
 
                 onClicked: {
                     if (toolbar.viewMode !== "tree") {
-                        toolbar.viewModeChanged("tree")
+                        toolbar.viewModeChangeRequested("tree")
                     }
                 }
 
@@ -470,7 +470,7 @@ Rectangle {
 
                 onClicked: {
                     if (toolbar.viewMode !== "preview") {
-                        toolbar.viewModeChanged("preview")
+                        toolbar.viewModeChangeRequested("preview")
                     }
                 }
 
