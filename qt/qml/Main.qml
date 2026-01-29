@@ -32,7 +32,7 @@ ApplicationWindow {
     // Format auto-detection (Story 8.4)
     property string detectedFormat: "json"
 
-    // View mode: "tree" or "text"
+    // View mode: "tree", "text", or "preview" (Story 10.5)
     property string viewMode: "tree"
 
     // Store current formatted JSON for both views
@@ -208,7 +208,7 @@ ApplicationWindow {
             window.detectedFormat = format;
         }
 
-        // Story 10.4: Markdown with Mermaid rendering completion handler
+        // Story 10.4 + 10.5: Markdown with Mermaid rendering completion handler
         function onMarkdownWithMermaidRendered(html, warnings) {
             currentFormattedJson = html;
             outputPane.text = html;
@@ -219,8 +219,8 @@ ApplicationWindow {
             inputPane.errorMessage = "";
             // Stop pending validation
             validationTimer.stop();
-            // Switch to text view for rendered HTML output
-            window.viewMode = "text";
+            // Story 10.5: Switch to preview mode for rendered Markdown (AC: 1, 2)
+            window.viewMode = "preview";
             // Show warnings if any
             if (warnings && warnings.length > 0) {
                 console.log("Markdown render warnings:", warnings);
@@ -321,8 +321,9 @@ ApplicationWindow {
                 console.log("Format selected:", format);
             }
 
-            onViewModeToggled: {
-                window.viewMode = (window.viewMode === "tree") ? "text" : "tree"
+            // Story 10.5: View mode toggle now uses explicit mode
+            onViewModeChanged: function(mode) {
+                window.viewMode = mode;
             }
 
             onExpandAllRequested: {
@@ -439,7 +440,7 @@ ApplicationWindow {
                 }
             }
 
-            // Output area - switches between TreeView and TextArea
+            // Output area - switches between TreeView, TextArea, and MarkdownPreview
             Item {
                 id: outputArea
                 SplitView.fillWidth: true
@@ -451,6 +452,7 @@ ApplicationWindow {
                     id: outputPane
                     anchors.fill: parent
                     visible: viewMode === "text"
+                    format: window.detectedFormat  // Story 10.5: Pass format for proper highlighting
                 }
 
                 JsonTreeView {
@@ -458,6 +460,14 @@ ApplicationWindow {
                     anchors.fill: parent
                     visible: viewMode === "tree"
                     model: window.detectedFormat === "xml" ? JsonBridge.xmlTreeModel : JsonBridge.treeModel
+                }
+
+                // Story 10.5: Markdown Preview Pane (AC: 1, 2, 3)
+                MarkdownPreview {
+                    id: markdownPreview
+                    anchors.fill: parent
+                    visible: viewMode === "preview" && window.detectedFormat === "markdown"
+                    html: currentFormattedJson
                 }
             }
         }
@@ -500,12 +510,13 @@ ApplicationWindow {
 
             outputContent: Component {
                 Item {
-                    // Output area - switches between TreeView and TextArea (mirrors desktop)
+                    // Output area - switches between TreeView, TextArea, and MarkdownPreview (mirrors desktop)
                     OutputPane {
                         id: mobileOutputPane
                         anchors.fill: parent
                         visible: viewMode === "text"
                         text: outputPane.text
+                        format: window.detectedFormat  // Story 10.5: Pass format for proper highlighting
                     }
 
                     JsonTreeView {
@@ -513,6 +524,14 @@ ApplicationWindow {
                         anchors.fill: parent
                         visible: viewMode === "tree"
                         model: window.detectedFormat === "xml" ? JsonBridge.xmlTreeModel : JsonBridge.treeModel
+                    }
+
+                    // Story 10.5: Markdown Preview Pane for mobile
+                    MarkdownPreview {
+                        id: mobileMarkdownPreview
+                        anchors.fill: parent
+                        visible: viewMode === "preview" && window.detectedFormat === "markdown"
+                        html: currentFormattedJson
                     }
                 }
             }
@@ -761,10 +780,18 @@ ApplicationWindow {
         onActivated: jsonTreeView.collapseAll()
     }
 
-    // Toggle view mode
+    // Toggle view mode (Story 10.5: cycles through available modes based on format)
     Shortcut {
         sequence: "Ctrl+T"
-        onActivated: viewMode = (viewMode === "tree") ? "text" : "tree"
+        onActivated: {
+            if (window.detectedFormat === "markdown") {
+                // Markdown: code -> preview -> code
+                viewMode = (viewMode === "text") ? "preview" : "text";
+            } else {
+                // JSON/XML: tree -> text -> tree
+                viewMode = (viewMode === "tree") ? "text" : "tree";
+            }
+        }
     }
 
     // Open history panel

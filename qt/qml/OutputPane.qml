@@ -6,6 +6,7 @@ Rectangle {
     id: outputPane
 
     property string text: ""  // Plain text for copy operations
+    property string format: "json"  // "json", "xml", or "markdown" - used for highlighting
 
     color: Theme.backgroundSecondary
     border.color: Theme.border
@@ -34,11 +35,29 @@ Rectangle {
     }
 
     onTextChanged: {
-        if (text) {
-            // Get highlighted HTML from Rust via bridge
-            textArea.text = JsonBridge.highlightJson(text);
-        } else {
+        updateHighlighting();
+    }
+
+    onFormatChanged: {
+        updateHighlighting();
+    }
+
+    // Update syntax highlighting based on format (AC: 6 - Code view shows raw HTML)
+    function updateHighlighting() {
+        if (!text) {
             textArea.text = "";
+            return;
+        }
+
+        // Story 10.5: For markdown format in Code view, show raw HTML with syntax highlighting
+        if (format === "markdown") {
+            // The text contains rendered HTML - highlight it as HTML/XML
+            textArea.text = JsonBridge.highlightXml(text);
+        } else if (format === "xml") {
+            textArea.text = JsonBridge.highlightXml(text);
+        } else {
+            // Default: JSON highlighting
+            textArea.text = JsonBridge.highlightJson(text);
         }
     }
 

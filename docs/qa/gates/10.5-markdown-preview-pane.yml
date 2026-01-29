@@ -1,0 +1,50 @@
+# Quality Gate - Story 10.5: Markdown Preview Pane
+schema: 1
+story: "10.5"
+story_title: "Markdown Preview Pane"
+gate: PASS
+status_reason: "Implementation complete with defense-in-depth security and full theme integration. All ACs met. Minor improvement: native QML tests recommended for future."
+reviewer: "Quinn (Test Architect)"
+updated: "2026-01-28T21:45:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+quality_score: 95  # Minor: no native QML tests
+expires: "2026-02-11T21:45:00Z"
+
+evidence:
+  tests_reviewed: 25
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "Defense-in-depth sanitization implemented (AC10). Checks for script, iframe, object, embed, on* handlers, javascript: URLs."
+  performance:
+    status: PASS
+    notes: "Performance instrumentation added (AC11). 300ms debounce implemented (AC9)."
+  reliability:
+    status: PASS
+    notes: "Error display for rejected content implemented with clear themed warning message."
+  maintainability:
+    status: PASS
+    notes: "Clean code with inline style injection for theme support. Browser tests cover all ACs."
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Add native QML tests (tst_markdown_preview.cpp) for component-level testing"
+      refs: ["qt/tests/"]
+
+history:
+  - at: "2026-01-28T21:30:00Z"
+    gate: CONCERNS
+    note: "Initial review - dead code (unused CSS functions), AC4 partial"
+  - at: "2026-01-28T21:45:00Z"
+    gate: PASS
+    note: "Refactored: replaced dead CSS functions with applyThemeStyles() for inline style injection. AC4 now fully covered."

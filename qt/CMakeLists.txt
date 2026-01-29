@@ -42,6 +42,12 @@ qt_add_qml_module(airgap_formatter
         qml/JsonTreeView.qml
         qml/StatusBar.qml
         qml/HistoryPanel.qml
+        qml/Theme.qml
+        qml/InputOutputToggle.qml
+        qml/OverflowMenu.qml
+        qml/ShareDialog.qml
+        qml/PassphrasePrompt.qml
+        qml/MarkdownPreview.qml
     SOURCES
         theme.h
         theme.cpp

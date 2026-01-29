@@ -12,7 +12,7 @@ Rectangle {
     signal minifyRequested()
     signal copyRequested()
     signal clearRequested()
-    signal viewModeToggled()
+    signal viewModeChanged(string mode)  // Story 10.5: Changed from toggle to explicit mode
     signal expandAllRequested()
     signal collapseAllRequested()
     signal loadHistoryRequested()
@@ -354,11 +354,13 @@ Rectangle {
         // RIGHT ZONE: View & Output Controls
         // ═══════════════════════════════════════════════════════════════
 
-        // Segmented View Mode Control (Code | Tree) - hidden on mobile
+        // Story 10.5: Segmented View Mode Control (Code | Tree | Preview) - hidden on mobile
+        // Shows different options based on format: markdown shows Code/Preview, JSON/XML shows Code/Tree
         Row {
             visible: !toolbar.mobileMode
             spacing: 0
 
+            // Code button - always first
             Button {
                 id: codeViewBtn
                 width: 50
@@ -388,7 +390,7 @@ Rectangle {
 
                 onClicked: {
                     if (toolbar.viewMode !== "text") {
-                        toolbar.viewModeToggled()
+                        toolbar.viewModeChanged("text")
                     }
                 }
 
@@ -397,10 +399,12 @@ Rectangle {
                 ToolTip.delay: 500
             }
 
+            // Tree button - visible for JSON/XML only (AC: 2)
             Button {
                 id: treeViewBtn
                 width: 50
                 height: Theme.desktopButtonHeight
+                visible: toolbar.effectiveFormat !== "markdown"
 
                 contentItem: Text {
                     text: "Tree"
@@ -426,12 +430,52 @@ Rectangle {
 
                 onClicked: {
                     if (toolbar.viewMode !== "tree") {
-                        toolbar.viewModeToggled()
+                        toolbar.viewModeChanged("tree")
                     }
                 }
 
                 ToolTip.visible: hovered
                 ToolTip.text: "Tree View (Ctrl+T)"
+                ToolTip.delay: 500
+            }
+
+            // Preview button - visible for Markdown only (AC: 1, 2)
+            Button {
+                id: previewViewBtn
+                width: 60
+                height: Theme.desktopButtonHeight
+                visible: toolbar.effectiveFormat === "markdown"
+
+                contentItem: Text {
+                    text: "Preview"
+                    color: toolbar.viewMode === "preview" ? "#ffffff" : Theme.textSecondary
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    font.pixelSize: 12
+                    font.weight: toolbar.viewMode === "preview" ? Font.Medium : Font.Normal
+                }
+                background: Rectangle {
+                    color: toolbar.viewMode === "preview" ? Theme.accent : Theme.backgroundSecondary
+                    border.color: Theme.border
+                    border.width: 1
+                    radius: 4
+                    // Round only right corners
+                    Rectangle {
+                        anchors.left: parent.left
+                        width: parent.radius
+                        height: parent.height
+                        color: parent.color
+                    }
+                }
+
+                onClicked: {
+                    if (toolbar.viewMode !== "preview") {
+                        toolbar.viewModeChanged("preview")
+                    }
+                }
+
+                ToolTip.visible: hovered
+                ToolTip.text: "Preview Mode (Ctrl+T)"
                 ToolTip.delay: 500
             }
         }
