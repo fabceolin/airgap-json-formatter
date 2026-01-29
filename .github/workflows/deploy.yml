@@ -7,9 +7,7 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write  # Need write to push to gh-pages branch
 
 concurrency:
   group: "pages"
@@ -193,22 +191,19 @@ jobs:
           echo "=== Total size ==="
           du -sh dist/
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: ./dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-24.04
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-
-    steps:
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          keep_files: true  # Keep branch deployments in subdirectories
+          commit_message: "Deploy version ${{ steps.version.outputs.VERSION }}"
+
+      - name: Output deployment URL
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY#*/}"
+          OWNER="${GITHUB_REPOSITORY%/*}"
+          echo "=========================================="
+          echo "Deployed successfully!"
+          echo "URL: https://$OWNER.github.io/$REPO_NAME/"
+          echo "=========================================="
