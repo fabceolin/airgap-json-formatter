@@ -1,66 +1,81 @@
-name: Build and Deploy
+name: Deploy Branch Preview
 
 on:
   push:
-    tags:
-      - 'v*'  # Trigger only on version tags (v0.1.0, v1.0.0, etc.)
-  workflow_dispatch:  # Allow manual trigger
+    branches:
+      - 'development'
+      - 'feature/**'
+      - 'fix/**'
+      - 'preview/**'
+    # Exclude main branch and tags (handled by deploy.yml)
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to deploy (leave empty for current branch)'
+        required: false
+        type: string
 
 permissions:
   contents: write  # Need write to push to gh-pages branch
 
-concurrency:
-  group: "pages"
-  cancel-in-progress: false
-
 env:
   CARGO_TERM_COLOR: always
-  # Qt 6.10.1 + Emscripten 4.0.7 is the supported combination
   QT_VERSION: '6.10.1'
   EMSDK_VERSION: '4.0.7'
 
 jobs:
-  build:
+  build-and-deploy:
     runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
-      - name: Extract version from tag
+      - name: Extract branch name
+        id: branch
+        run: |
+          if [[ -n "${{ github.event.inputs.branch }}" ]]; then
+            BRANCH="${{ github.event.inputs.branch }}"
+          else
+            BRANCH="${GITHUB_REF#refs/heads/}"
+          fi
+          # Sanitize branch name for use as URL path (replace / with -)
+          SAFE_BRANCH=$(echo "$BRANCH" | sed 's|/|-|g' | sed 's|[^a-zA-Z0-9_-]|-|g')
+          echo "BRANCH=$BRANCH" >> $GITHUB_OUTPUT
+          echo "SAFE_BRANCH=$SAFE_BRANCH" >> $GITHUB_OUTPUT
+          echo "Deploying branch: $BRANCH as /$SAFE_BRANCH"
+
+      - name: Get version from VERSION file
         id: version
         run: |
-          if [[ "${{ github.ref_type }}" == "tag" ]]; then
-            # Extract version from tag (remove 'v' prefix)
-            VERSION="${GITHUB_REF#refs/tags/v}"
-          else
-            # Use VERSION file for manual triggers
-            VERSION=$(cat VERSION | tr -d '[:space:]')
-          fi
+          VERSION=$(cat VERSION | tr -d '[:space:]')
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "Building version: $VERSION"
+          echo "Building version: $VERSION (branch: ${{ steps.branch.outputs.BRANCH }})"
 
       - name: Update version in source files
         run: |
           VERSION="${{ steps.version.outputs.VERSION }}"
+          BRANCH="${{ steps.branch.outputs.SAFE_BRANCH }}"
 
-          # Update Theme.qml (QML singleton)
-          sed -i "s/readonly property string appVersion: \".*\"/readonly property string appVersion: \"$VERSION\"/" qt/qml/Theme.qml
+          # Update Theme.qml (QML singleton) - append branch name
+          sed -i "s/readonly property string appVersion: \".*\"/readonly property string appVersion: \"$VERSION-$BRANCH\"/" qt/qml/Theme.qml
           echo "Updated Theme.qml:"
           grep appVersion qt/qml/Theme.qml
 
           # Update theme.h (C++ Theme class used by Qt WASM)
-          sed -i "s/return QStringLiteral(\"[0-9]*\.[0-9]*\.[0-9]*\")/return QStringLiteral(\"$VERSION\")/" qt/theme.h
+          sed -i "s/return QStringLiteral(\"[0-9]*\.[0-9]*\.[0-9]*\")/return QStringLiteral(\"$VERSION-$BRANCH\")/" qt/theme.h
           echo "Updated theme.h:"
           grep appVersion qt/theme.h
 
           # Update main.cpp (Qt application version)
-          sed -i "s/setApplicationVersion(\"[0-9]*\.[0-9]*\.[0-9]*\")/setApplicationVersion(\"$VERSION\")/" qt/main.cpp
+          sed -i "s/setApplicationVersion(\"[0-9]*\.[0-9]*\.[0-9]*\")/setApplicationVersion(\"$VERSION-$BRANCH\")/" qt/main.cpp
           echo "Updated main.cpp:"
           grep setApplicationVersion qt/main.cpp
 
-          # Update service worker cache version to force cache refresh
-          sed -i "s/const CACHE_NAME = 'airgap-json-formatter-v[0-9]*'/const CACHE_NAME = 'airgap-json-formatter-v$VERSION'/" public/sw.js
+          # Update service worker cache version
+          sed -i "s/const CACHE_NAME = 'airgap-json-formatter-v[^']*'/const CACHE_NAME = 'airgap-json-formatter-v$VERSION-$BRANCH'/" public/sw.js
           echo "Updated sw.js:"
           grep CACHE_NAME public/sw.js
 
@@ -82,9 +97,6 @@ jobs:
       - name: Install wasm-bindgen-cli
         run: cargo install wasm-bindgen-cli
 
-      # Note: wasm-opt skipped due to table growth bug in versions 108-118
-      # https://github.com/AztecProtocol/aztec-packages/issues/12379
-
       - name: Build Rust WASM
         run: |
           cargo build --target wasm32-unknown-unknown --release
@@ -103,7 +115,6 @@ jobs:
           echo "Gzipped size: $GZIP_SIZE bytes ($(($GZIP_SIZE / 1024)) KB)"
           rm dist/pkg/airgap_json_formatter_bg.wasm.gz
 
-      # Setup Emscripten SDK (required for Qt WASM)
       - name: Setup Emscripten
         uses: mymindstorm/setup-emsdk@v14
         with:
@@ -115,7 +126,6 @@ jobs:
           emcc --version
           echo "EMSDK: $EMSDK"
 
-      # Install Qt for WebAssembly
       - name: Install Qt WASM
         uses: jurplel/install-qt-action@v4
         with:
@@ -135,28 +145,21 @@ jobs:
           echo "Looking for qt-cmake:"
           find $QT_ROOT_DIR -name "qt-cmake*" 2>/dev/null || echo "qt-cmake not found"
 
-      # Build Qt WASM application
       - name: Build Qt WASM
         run: |
           cd qt
           mkdir -p build && cd build
 
-          # Find qt-cmake
           QT_CMAKE=$(find $QT_ROOT_DIR -name "qt-cmake" -type f | head -1)
           echo "Using qt-cmake: $QT_CMAKE"
           chmod +x "$QT_CMAKE"
 
-          # Configure with CMake
           "$QT_CMAKE" .. -DCMAKE_BUILD_TYPE=Release
-
-          # Build
           cmake --build . --parallel $(nproc)
 
-          # Copy Qt WASM outputs to dist
           echo "Build output:"
           ls -la
 
-          # Copy all relevant files
           for ext in wasm js html; do
             for file in *.$ext; do
               if [ -f "$file" ]; then
@@ -166,14 +169,12 @@ jobs:
             done
           done
 
-          # Copy qtloader.js if present
           if [ -f "qtloader.js" ]; then
             cp qtloader.js ../../dist/
           fi
 
       - name: Copy static assets
         run: |
-          # Copy all public assets to dist
           cp public/index.html dist/
           cp public/bridge.js dist/
           cp public/history-storage.js dist/
@@ -183,6 +184,19 @@ jobs:
           cp public/icon-192.png dist/
           cp public/icon-512.png dist/
 
+          # Copy mermaid config and libs if they exist
+          if [ -f "public/mermaid-config.js" ]; then
+            cp public/mermaid-config.js dist/
+          fi
+          if [ -d "public/lib" ]; then
+            cp -r public/lib dist/
+          fi
+
+          # Copy jspi-detect.js if it exists
+          if [ -f "public/jspi-detect.js" ]; then
+            cp public/jspi-detect.js dist/
+          fi
+
       - name: List build artifacts
         run: |
           echo "=== Build Output ==="
@@ -191,19 +205,20 @@ jobs:
           echo "=== Total size ==="
           du -sh dist/
 
-      - name: Deploy to GitHub Pages
+      - name: Deploy to GitHub Pages (branch subdirectory)
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          keep_files: true  # Keep branch deployments in subdirectories
-          commit_message: "Deploy version ${{ steps.version.outputs.VERSION }}"
+          destination_dir: ${{ steps.branch.outputs.SAFE_BRANCH }}
+          keep_files: true  # Keep other branch deployments
+          commit_message: "Deploy branch ${{ steps.branch.outputs.BRANCH }} to /${{ steps.branch.outputs.SAFE_BRANCH }}"
 
       - name: Output deployment URL
         run: |
           REPO_NAME="${GITHUB_REPOSITORY#*/}"
           OWNER="${GITHUB_REPOSITORY%/*}"
           echo "=========================================="
-          echo "Deployed successfully!"
-          echo "URL: https://$OWNER.github.io/$REPO_NAME/"
+          echo "Branch deployed successfully!"
+          echo "URL: https://$OWNER.github.io/$REPO_NAME/${{ steps.branch.outputs.SAFE_BRANCH }}/"
           echo "=========================================="
