@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
     // Set application metadata
     QGuiApplication::setApplicationName("Airgap JSON Formatter");
     QGuiApplication::setOrganizationName("Airgap");
-    QGuiApplication::setApplicationVersion("0.1.7");
+    QGuiApplication::setApplicationVersion("0.1.8");
 
     // Use Fusion style for consistent look across platforms
     QQuickStyle::setStyle("Fusion");

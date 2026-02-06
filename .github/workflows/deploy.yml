@@ -182,6 +182,7 @@ jobs:
           cp public/404.html dist/
           cp public/icon-192.png dist/
           cp public/icon-512.png dist/
+          cp public/jspi-detect.js dist/
 
       - name: List build artifacts
         run: |
